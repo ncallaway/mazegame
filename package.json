@@ -1,0 +1,13 @@
+{
+  "name": "mazegame",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "bun build src/maze.ts --outfile maze.js",
+    "watch": "bun build src/maze.ts --outfile maze.js --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
