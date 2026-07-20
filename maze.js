@@ -1,4 +1,94 @@
+// src/diagnostic.ts
+var EMPTY = "·";
+var VISITED = "o";
+var FILLER = " ";
+var H_LINK = "─";
+var V_LINK = "│";
+var START = "S";
+var HEAD = "@";
+var BODY = "●";
+var parseCell = (key) => {
+  const [row, col] = key.split("x").map(Number);
+  return { row, col };
+};
+var parseEdge = (edge) => {
+  const [a, b] = edge.split("|");
+  return [parseCell(a), parseCell(b)];
+};
+var makeCanvas = (size) => {
+  const rows = Math.max(size.height * 2 - 1, 0);
+  const cols = Math.max(size.width * 2 - 1, 0);
+  const canvas = [];
+  for (let r = 0;r < rows; r++) {
+    const line = [];
+    for (let c = 0;c < cols; c++) {
+      if (r % 2 === 0 && c % 2 === 0) {
+        line.push(EMPTY);
+      } else {
+        line.push(FILLER);
+      }
+    }
+    canvas.push(line);
+  }
+  return canvas;
+};
+var drawLink = (canvas, a, b) => {
+  if (a.row === b.row) {
+    canvas[a.row * 2][a.col + b.col] = H_LINK;
+  } else if (a.col === b.col) {
+    canvas[a.row + b.row][a.col * 2] = V_LINK;
+  }
+};
+var setCell = (canvas, cell, glyph) => {
+  canvas[cell.row * 2][cell.col * 2] = glyph;
+};
+var renderMaze = (size, view) => {
+  const canvas = makeCanvas(size);
+  if (view.visited) {
+    for (const cell of view.visited) {
+      setCell(canvas, cell, VISITED);
+    }
+  }
+  if (view.edges) {
+    for (const edge of view.edges) {
+      const [a, b] = parseEdge(edge);
+      drawLink(canvas, a, b);
+    }
+  }
+  if (view.path) {
+    const path = view.path;
+    for (let i = 1;i < path.length; i++) {
+      drawLink(canvas, path[i - 1], path[i]);
+    }
+    path.forEach((cell, i) => {
+      const isStart = i === 0;
+      const isHead = i === path.length - 1;
+      let marker = BODY;
+      if (isStart) {
+        marker = START;
+      }
+      if (isHead && !isStart) {
+        marker = HEAD;
+      }
+      setCell(canvas, cell, marker);
+    });
+  }
+  return canvas.map((line) => line.join("")).join(`
+`);
+};
+var logMaze = (size, view, label) => {
+  if (label) {
+    console.log(label);
+  }
+  console.log(renderMaze(size, view));
+  console.log("");
+};
+var logPath = (size, path, label) => {
+  logMaze(size, { path }, label);
+};
+
 // src/maze.ts
+var SHOW_STEPS = true;
 console.log("hello world!");
 var createFullSet = (size) => {
   const full = new MazeAddressSet;
@@ -14,10 +104,31 @@ var generateMaze = (size) => {
   const initialCell = selectRandomCell(size);
   const unvisited = createFullSet(size);
   const visited = new MazeAddressSet;
+  const edges = new Set;
   console.log(`initialCell: ${initialCell.col},${initialCell.row}`);
   unvisited.delete(initialCell);
   visited.add(initialCell);
-  const path = generateMazePath(size, visited, unvisited);
+  while (unvisited.size > 0) {
+    console.log("========== STARTING NEW PATH GENERATION ==============");
+    const path = generateMazePath(size, visited, unvisited);
+    for (let idx = 1;idx < path.size; idx++) {
+      const first = path.at(idx - 1);
+      const second = path.at(idx);
+      edges.add(edgeKey(first, second));
+    }
+    for (let idx = 0;idx < path.size; idx++) {
+      const cell = path.at(idx);
+      visited.add(cell);
+      unvisited.delete(cell);
+    }
+  }
+  const maze = {
+    size,
+    edges,
+    start: initialCell,
+    end
+  };
+  logMaze(size, { edges, visited: visited.toArray() }, "final maze");
 };
 var generateMazePath = (size, visited, unvisited) => {
   const start = unvisited.sample();
@@ -26,7 +137,12 @@ var generateMazePath = (size, visited, unvisited) => {
   console.log(`path start: ${start.col},${start.row}`);
   let prior = undefined;
   let current = start;
+  let step = 0;
   while (true) {
+    if (SHOW_STEPS) {
+      logPath(size, path.toArray(), `step ${step} — current (${current.row},${current.col})`);
+    }
+    step++;
     const next = selectNextCell(current, prior, size, path, visited);
     if (!next) {
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
@@ -35,6 +151,9 @@ var generateMazePath = (size, visited, unvisited) => {
     if (visited.has(next)) {
       path.add(next);
       console.log(`next touches visited. Adding it to the maze.`);
+      if (SHOW_STEPS) {
+        logPath(size, path.toArray(), `final path (${path.size} cells)`);
+      }
       return path;
     }
     if (path.has(next)) {
@@ -85,6 +204,20 @@ var selectRandomCell = (size) => {
   const col = Math.floor(Math.random() * size.width);
   return { row, col };
 };
+var cellKey = (cell) => `${cell.row}x${cell.col}`;
+var edgeKey = (a, b) => {
+  let first = a;
+  let second = b;
+  if (second.row < first.row) {
+    first = b;
+    second = a;
+  }
+  if (first.row == second.row && second.col < first.col) {
+    first = b;
+    second = a;
+  }
+  return `${cellKey(first)}|${cellKey(second)}`;
+};
 
 class MazeAddressSet {
   #items = [];
@@ -106,6 +239,9 @@ class MazeAddressSet {
   }
   at(index) {
     return this.#items[index];
+  }
+  toArray() {
+    return [...this.#items];
   }
   add(addr) {
     const k = MazeAddressSet.#key(addr);

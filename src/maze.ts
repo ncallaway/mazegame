@@ -1,3 +1,9 @@
+import { wrap } from "yargs";
+import { logPath, logMaze } from "./diagnostic";
+
+// toggle path visualization during maze generation
+const SHOW_STEPS = true;
+
 console.log("hello world!");
 
 /*
@@ -17,6 +23,13 @@ console.log("hello world!");
  * }
  */
 
+type Maze = {
+  size: MazeSize;
+  edges: Set<string>;
+  start: MazeAddress;
+  end: MazeAddress;
+}
+
 type MazeAddress = {
   row: number;
   col: number;
@@ -25,6 +38,12 @@ type MazeAddress = {
 type MazeSize = {
   width: number;
   height: number;
+}
+
+type MazeParameters = {
+  size: MazeSize;
+  goalDistanceMin: number;
+  goalDistanceMax: number;
 }
 
 const createFullSet = (size:MazeSize): MazeAddressSet => {
@@ -38,18 +57,98 @@ const createFullSet = (size:MazeSize): MazeAddressSet => {
   return full;
 }
 
-const generateMaze = (size: MazeSize) => {
+const cellsConnected = (a: MazeAddress, b: MazeAddress, edges: Set<string>) => {
+  const key = edgeKey(a, b);
+  return edges.has(key);
+}
+
+const generateMaze = (params: MazeParameters): Maze => {
+  const size = params.size;
+
   console.log(`Generating: ${size.width}x${size.height} maze`);
   const initialCell = selectRandomCell(size);
   const unvisited = createFullSet(size);
   const visited = new MazeAddressSet();
+  const edges = new Set<string>();
 
   console.log(`initialCell: ${initialCell.col},${initialCell.row}`);
 
   unvisited.delete(initialCell);
   visited.add(initialCell);
 
-  const path = generateMazePath(size, visited, unvisited);
+  while (unvisited.size > 0) {
+    console.log("========== STARTING NEW PATH GENERATION ==============");
+    const path = generateMazePath(size, visited, unvisited);
+    // add the path to the maze:
+    // first add edges
+    for (let idx=1; idx<path.size; idx++) {
+      const first = path.at(idx-1)!;
+      const second = path.at(idx)!;
+      edges.add(edgeKey(first, second));
+    }
+    // then update the visited set
+    for (let idx=0; idx<path.size; idx++) {
+      const cell = path.at(idx)!;
+      visited.add(cell);
+      unvisited.delete(cell);
+    }
+  }
+
+  const end: MazeAddress = selectMazeGoal(params, edges, initialCell);
+
+  const maze: Maze = {
+    size,
+    edges,
+    start: initialCell,
+    end:
+  }
+
+  logMaze(size, { edges, visited: visited.toArray() }, "final maze");
+}
+
+const selectMazeGoal = (params: MazeParameters, edges: Set<string>, start: MazeAddress) => {
+  const solutionMap = buildSolutionMap(start, params.size, edges);
+}
+
+const buildSolutionMap = (start: MazeAddress, size: MazeSize, edges: Set<string>): MazeAddressSet<MazeAddress> => {
+  // dijkstra's
+  
+  const previousMap = new MazeAddressSet<MazeAddress>();
+  
+  const visited = new MazeAddressSet();
+  const toVisit = new MazeAddressSet();
+  toVisit.add(start);
+
+  while (toVisit.size > 0) {
+    const current: MazeAddress = toVisit.sample()!;
+    visited.add(current);
+    toVisit.delete(current);
+
+    const left: MazeAddress = { row: current.row, col: current.col - 1 };
+    const right: MazeAddress = { row: current.row, col: current.col + 1 };
+    const up: MazeAddress = { row: current.row - 1, col: current.col };
+    const down: MazeAddress = { row: current.row + 1, col: current.col };
+
+    if (isInMaze(left, size) && !visited.has(left) && !toVisit.has(left) && cellsConnected(current, left, edges)) {
+      toVisit.add(left);
+      previousMap.add(left, current);
+    }
+    if (isInMaze(right, size) && !visited.has(right) && !toVisit.has(right) && cellsConnected(current, right, edges)) {
+      toVisit.add(right);
+      previousMap.add(right, current);
+    }
+    if (isInMaze(up, size) && !visited.has(up) && !toVisit.has(up) && cellsConnected(current, up, edges)) {
+      toVisit.add(up);
+      previousMap.add(up, current);
+    }
+    if (isInMaze(down, size) && !visited.has(down) && !toVisit.has(down) && cellsConnected(current, down, edges)) {
+      toVisit.add(down);
+      previousMap.add(down, current);
+    }
+  }
+
+  return previousMap;
+
 }
 
 const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: MazeAddressSet): MazeAddressSet => {
@@ -61,7 +160,13 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
   let prior: MazeAddress | undefined = undefined;
   let current: MazeAddress = start;
 
+  let step = 0;
   while (true) {
+    if (SHOW_STEPS) {
+      logPath(size, path.toArray(), `step ${step} — current (${current.row},${current.col})`);
+    }
+    step++;
+
     const next = selectNextCell(current, prior, size, path, visited);
     // if next is undefined, we've failed to generate a maze
     if (!next) {
@@ -74,6 +179,9 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
       // consume the path, adding it to the maze
       path.add(next);
       console.log(`next touches visited. Adding it to the maze.`);
+      if (SHOW_STEPS) {
+        logPath(size, path.toArray(), `final path (${path.size} cells)`);
+      }
       return path;
     }
 
@@ -130,9 +238,30 @@ const selectRandomCell = (size: MazeSize): MazeAddress => {
   return { row, col };
 }
 
-class MazeAddressSet {
+const cellKey = (cell: MazeAddress) => `${cell.row}x${cell.col}`;
+const edgeKey = (a: MazeAddress, b: MazeAddress) => {
+  let first = a;
+  let second = b;
+
+  // swap!
+  if (second.row < first.row) {
+    first = b;
+    second = a;
+  }
+ 
+  // swap!
+  if (first.row == second.row && second.col < first.col) {
+    first = b;
+    second = a;
+  }
+
+  return `${cellKey(first)}|${cellKey(second)}`;
+}
+
+class MazeAddressSet<T = void> {
   #items:MazeAddress[] = [];
   #index:Map<string,number> = new Map();
+  #data:Map<string,T> = new Map();
 
   static #key({ row, col }: MazeAddress): string {
     return `${row}x${col}`;
@@ -148,7 +277,9 @@ class MazeAddressSet {
 
   truncateAt(index:number): void {
     for (let i = index; i < this.#items.length; i++) {
-      this.#index.delete(MazeAddressSet.#key(this.#items[i]));
+      const k = MazeAddressSet.#key(this.#items[i])
+      this.#index.delete(k);
+      this.#data.delete(k);
     }
     this.#items.length = Math.min(this.#items.length, index);
   }
@@ -157,13 +288,23 @@ class MazeAddressSet {
     return this.#items[index];
   }
 
-  add(addr:MazeAddress): void {
+  toArray(): MazeAddress[] {
+    return [...this.#items];
+  }
+
+  add(addr:MazeAddress, ...rest: [T] extends [void] ? [] : [data: T]): void {
     const k = MazeAddressSet.#key(addr);
     if (this.#index.has(k)) {
       return;
     }
     this.#index.set(k, this.#items.length);
+    this.#data.set(k, rest[0] as T);
     this.#items.push(addr);
+  }
+
+  get(addr:MazeAddress): T | undefined {
+    const k = MazeAddressSet.#key(addr);
+    return this.#data.get(k);
   }
 
   delete(addr:MazeAddress): boolean {
@@ -178,6 +319,7 @@ class MazeAddressSet {
       this.#index.set(MazeAddressSet.#key(last), i);
     }
     this.#index.delete(k);
+    this.#data.delete(k);
     return true;
   }
 
