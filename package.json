@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "bun build src/maze.ts --outfile maze.js",
-    "watch": "bun build src/maze.ts --outfile maze.js --watch"
+    "build": "bun build src/maze.ts --outdir . --root src --sourcemap=linked",
+    "watch": "bun build src/maze.ts --outdir . --root src --sourcemap=linked --watch"
   },
   "keywords": [],
   "author": "",

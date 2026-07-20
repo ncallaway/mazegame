@@ -1,5 +1,4 @@
-import { wrap } from "yargs";
-import { logPath, logMaze } from "./diagnostic";
+import { logPath, logMazeObject } from "./diagnostic";
 
 // toggle path visualization during maze generation
 const SHOW_STEPS = true;
@@ -100,19 +99,44 @@ const generateMaze = (params: MazeParameters): Maze => {
     size,
     edges,
     start: initialCell,
-    end:
+    end
   }
 
-  logMaze(size, { edges, visited: visited.toArray() }, "final maze");
+  logMazeObject(maze, "final maze");
+
+  return maze;
 }
 
-const selectMazeGoal = (params: MazeParameters, edges: Set<string>, start: MazeAddress) => {
+const selectMazeGoal = (params: MazeParameters, edges: Set<string>, start: MazeAddress): MazeAddress => {
   const solutionMap = buildSolutionMap(start, params.size, edges);
+
+  let iterations = 0;
+  while (true) {
+    iterations++;
+    const proposedEnd = selectRandomCell(params.size);
+    const distance = findSolutionMapDistance(start, proposedEnd, solutionMap);
+
+    const tolerance = Math.floor(iterations / 10);
+    const goalMin = Math.max(1, params.goalDistanceMin - tolerance);
+    const goalMax = params.goalDistanceMax + tolerance;
+    if (distance >= goalMin && distance <= goalMax) {
+      return proposedEnd;
+    }
+  }
+}
+
+const findSolutionMapDistance = (start: MazeAddress, end: MazeAddress, solutionMap: MazeAddressSet<MazeAddress>) => {
+  let distance = 0;
+  let curr = end;
+
+  while (true) {
+    if (addrEqual(start, curr)) { return distance; }
+    curr = solutionMap.get(curr)!;
+    distance += 1;
+  }
 }
 
 const buildSolutionMap = (start: MazeAddress, size: MazeSize, edges: Set<string>): MazeAddressSet<MazeAddress> => {
-  // dijkstra's
-  
   const previousMap = new MazeAddressSet<MazeAddress>();
   
   const visited = new MazeAddressSet();
@@ -173,6 +197,10 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
     }
     console.log(`next: ${next!.col},${next!.row}`);
+    if (addrEqual(next,start)) {
+      console.warn(`selected start cell for next, skipping`);
+      continue;
+    }
 
     // if *next* is in visited, then we consume this path and add it to the maze
     if (visited.has(next)) {
@@ -335,4 +363,4 @@ class MazeAddressSet<T = void> {
   }
 }
 
-generateMaze({ width: 4, height: 4});
+generateMaze({ size: { width: 4, height: 4 }, goalDistanceMin: 4, goalDistanceMax: 8 });

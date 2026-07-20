@@ -7,6 +7,7 @@ var V_LINK = "│";
 var START = "S";
 var HEAD = "@";
 var BODY = "●";
+var END = "E";
 var parseCell = (key) => {
   const [row, col] = key.split("x").map(Number);
   return { row, col };
@@ -73,6 +74,12 @@ var renderMaze = (size, view) => {
       setCell(canvas, cell, marker);
     });
   }
+  if (view.start) {
+    setCell(canvas, view.start, START);
+  }
+  if (view.end) {
+    setCell(canvas, view.end, END);
+  }
   return canvas.map((line) => line.join("")).join(`
 `);
 };
@@ -85,6 +92,30 @@ var logMaze = (size, view, label) => {
 };
 var logPath = (size, path, label) => {
   logMaze(size, { path }, label);
+};
+var allCells = (size) => {
+  const cells = [];
+  for (let row = 0;row < size.height; row++) {
+    for (let col = 0;col < size.width; col++) {
+      cells.push({ row, col });
+    }
+  }
+  return cells;
+};
+var renderMazeObject = (maze) => {
+  return renderMaze(maze.size, {
+    visited: allCells(maze.size),
+    edges: maze.edges,
+    start: maze.start,
+    end: maze.end
+  });
+};
+var logMazeObject = (maze, label) => {
+  if (label) {
+    console.log(label);
+  }
+  console.log(renderMazeObject(maze));
+  console.log("");
 };
 
 // src/maze.ts
@@ -99,7 +130,12 @@ var createFullSet = (size) => {
   }
   return full;
 };
-var generateMaze = (size) => {
+var cellsConnected = (a, b, edges) => {
+  const key = edgeKey(a, b);
+  return edges.has(key);
+};
+var generateMaze = (params) => {
+  const size = params.size;
   console.log(`Generating: ${size.width}x${size.height} maze`);
   const initialCell = selectRandomCell(size);
   const unvisited = createFullSet(size);
@@ -122,13 +158,73 @@ var generateMaze = (size) => {
       unvisited.delete(cell);
     }
   }
+  const end = selectMazeGoal(params, edges, initialCell);
   const maze = {
     size,
     edges,
     start: initialCell,
     end
   };
-  logMaze(size, { edges, visited: visited.toArray() }, "final maze");
+  logMazeObject(maze, "final maze");
+  return maze;
+};
+var selectMazeGoal = (params, edges, start) => {
+  const solutionMap = buildSolutionMap(start, params.size, edges);
+  let iterations = 0;
+  while (true) {
+    iterations++;
+    const proposedEnd = selectRandomCell(params.size);
+    const distance = findSolutionMapDistance(start, proposedEnd, solutionMap);
+    const tolerance = Math.floor(iterations / 10);
+    const goalMin = Math.max(1, params.goalDistanceMin - tolerance);
+    const goalMax = params.goalDistanceMax + tolerance;
+    if (distance >= goalMin && distance <= goalMax) {
+      return proposedEnd;
+    }
+  }
+};
+var findSolutionMapDistance = (start, end, solutionMap) => {
+  let distance = 0;
+  let curr = end;
+  while (true) {
+    if (addrEqual(start, curr)) {
+      return distance;
+    }
+    curr = solutionMap.get(curr);
+    distance += 1;
+  }
+};
+var buildSolutionMap = (start, size, edges) => {
+  const previousMap = new MazeAddressSet;
+  const visited = new MazeAddressSet;
+  const toVisit = new MazeAddressSet;
+  toVisit.add(start);
+  while (toVisit.size > 0) {
+    const current = toVisit.sample();
+    visited.add(current);
+    toVisit.delete(current);
+    const left = { row: current.row, col: current.col - 1 };
+    const right = { row: current.row, col: current.col + 1 };
+    const up = { row: current.row - 1, col: current.col };
+    const down = { row: current.row + 1, col: current.col };
+    if (isInMaze(left, size) && !visited.has(left) && !toVisit.has(left) && cellsConnected(current, left, edges)) {
+      toVisit.add(left);
+      previousMap.add(left, current);
+    }
+    if (isInMaze(right, size) && !visited.has(right) && !toVisit.has(right) && cellsConnected(current, right, edges)) {
+      toVisit.add(right);
+      previousMap.add(right, current);
+    }
+    if (isInMaze(up, size) && !visited.has(up) && !toVisit.has(up) && cellsConnected(current, up, edges)) {
+      toVisit.add(up);
+      previousMap.add(up, current);
+    }
+    if (isInMaze(down, size) && !visited.has(down) && !toVisit.has(down) && cellsConnected(current, down, edges)) {
+      toVisit.add(down);
+      previousMap.add(down, current);
+    }
+  }
+  return previousMap;
 };
 var generateMazePath = (size, visited, unvisited) => {
   const start = unvisited.sample();
@@ -148,6 +244,10 @@ var generateMazePath = (size, visited, unvisited) => {
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
     }
     console.log(`next: ${next.col},${next.row}`);
+    if (addrEqual(next, start)) {
+      console.warn(`selected start cell for next, skipping`);
+      continue;
+    }
     if (visited.has(next)) {
       path.add(next);
       console.log(`next touches visited. Adding it to the maze.`);
@@ -222,6 +322,7 @@ var edgeKey = (a, b) => {
 class MazeAddressSet {
   #items = [];
   #index = new Map;
+  #data = new Map;
   static #key({ row, col }) {
     return `${row}x${col}`;
   }
@@ -233,7 +334,9 @@ class MazeAddressSet {
   }
   truncateAt(index) {
     for (let i = index;i < this.#items.length; i++) {
-      this.#index.delete(MazeAddressSet.#key(this.#items[i]));
+      const k = MazeAddressSet.#key(this.#items[i]);
+      this.#index.delete(k);
+      this.#data.delete(k);
     }
     this.#items.length = Math.min(this.#items.length, index);
   }
@@ -243,13 +346,18 @@ class MazeAddressSet {
   toArray() {
     return [...this.#items];
   }
-  add(addr) {
+  add(addr, ...rest) {
     const k = MazeAddressSet.#key(addr);
     if (this.#index.has(k)) {
       return;
     }
     this.#index.set(k, this.#items.length);
+    this.#data.set(k, rest[0]);
     this.#items.push(addr);
+  }
+  get(addr) {
+    const k = MazeAddressSet.#key(addr);
+    return this.#data.get(k);
   }
   delete(addr) {
     const k = MazeAddressSet.#key(addr);
@@ -263,6 +371,7 @@ class MazeAddressSet {
       this.#index.set(MazeAddressSet.#key(last), i);
     }
     this.#index.delete(k);
+    this.#data.delete(k);
     return true;
   }
   sample() {
@@ -275,4 +384,7 @@ class MazeAddressSet {
     return this.#items.length;
   }
 }
-generateMaze({ width: 4, height: 4 });
+generateMaze({ size: { width: 4, height: 4 }, goalDistanceMin: 4, goalDistanceMax: 8 });
+
+//# debugId=94E5C580CA81DD5B64756E2164756E21
+//# sourceMappingURL=maze.js.map

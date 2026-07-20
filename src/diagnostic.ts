@@ -18,6 +18,16 @@ export type MazeView = {
   edges?: Iterable<Edge>; // carved passages to draw as lines
   visited?: readonly Cell[]; // cells to mark as visited
   path?: readonly Cell[]; // an in-progress walk to overlay (start/body/head)
+  start?: Cell; // maze start, highlighted on top of everything
+  end?: Cell; // maze goal, highlighted on top of everything
+};
+
+// The subset of a Maze needed to draw it (structural — no import from maze.ts).
+export type MazeLike = {
+  size: Size;
+  edges: Iterable<Edge>;
+  start: Cell;
+  end: Cell;
 };
 
 const EMPTY = "·"; // a cell that is neither visited nor on the path
@@ -25,9 +35,10 @@ const VISITED = "o"; // a cell that belongs to the maze
 const FILLER = " "; // gap between cells with no connector
 const H_LINK = "─"; // horizontal connector
 const V_LINK = "│"; // vertical connector
-const START = "S"; // first cell of the path
+const START = "S"; // start cell (path start or maze start)
 const HEAD = "@"; // last (current) cell of the path
 const BODY = "●"; // any other cell on the path
+const END = "E"; // maze goal / end cell
 
 const parseCell = (key: string): Cell => {
   const [row, col] = key.split("x").map(Number);
@@ -110,6 +121,14 @@ export const renderMaze = (size: Size, view: MazeView): string => {
     });
   }
 
+  // 4. start / end markers, on top of everything else
+  if (view.start) {
+    setCell(canvas, view.start, START);
+  }
+  if (view.end) {
+    setCell(canvas, view.end, END);
+  }
+
   return canvas.map((line) => line.join("")).join("\n");
 };
 
@@ -130,4 +149,34 @@ export const logMaze = (size: Size, view: MazeView, label?: string): void => {
 // Log just a path (unchanged from before).
 export const logPath = (size: Size, path: readonly Cell[], label?: string): void => {
   logMaze(size, { path }, label);
+};
+
+// Every cell of the grid, used to show a finished maze as filled-in cells.
+const allCells = (size: Size): Cell[] => {
+  const cells: Cell[] = [];
+  for (let row = 0; row < size.height; row++) {
+    for (let col = 0; col < size.width; col++) {
+      cells.push({ row, col });
+    }
+  }
+  return cells;
+};
+
+// Render a finished Maze: all cells filled, edges as passages, start/end marked.
+export const renderMazeObject = (maze: MazeLike): string => {
+  return renderMaze(maze.size, {
+    visited: allCells(maze.size),
+    edges: maze.edges,
+    start: maze.start,
+    end: maze.end,
+  });
+};
+
+// Log a finished Maze, optionally under a label line.
+export const logMazeObject = (maze: MazeLike, label?: string): void => {
+  if (label) {
+    console.log(label);
+  }
+  console.log(renderMazeObject(maze));
+  console.log("");
 };
