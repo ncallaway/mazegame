@@ -1,4 +1,5 @@
-import { generateMaze, Maze, MazeAddress, MazeParameters} from './maze';
+import { getAction, initializeKeyboard, InputAction } from './input';
+import { connected, generateMaze, Maze, MazeAddress, MazeParameters} from './maze';
 import { render } from './render';
 import { MazeState } from './state';
 
@@ -33,15 +34,38 @@ function resize() {
 }
 resize();
 window.addEventListener("resize", resize);
+initializeKeyboard();
+
+const update = (s: MazeState, action: InputAction) => {
+  let moved = false;
+
+  if (!moved && action.discrete.x !== undefined && action.discrete.x != 0) {
+    const current = s.playerPosition;
+    const next = { row: current.row, col: current.col + action.discrete.x };
+    if (connected(current, next, s.maze)) {
+      s.playerPosition = next;
+      moved = true;
+    }
+  }
+
+  if (!moved && action.discrete.y !== undefined && action.discrete.y != 0) {
+    const current = s.playerPosition;
+    const next = { row: current.row + action.discrete.y, col: current.col};
+    if (connected(current, next, s.maze)) {
+      s.playerPosition = next;
+      moved = true;
+    }
+  }
+
+};
 
 const loop = () => {
   let last = performance.now();
   function frame(now: number) {
     const dt = (now - last) / 1000;  // seconds
     last = now;
-    // update(state, getIntent(), dt);
-    // render(ctx, state);
-    render(context, maze);
+    update(state, getAction());
+    render(context, state);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

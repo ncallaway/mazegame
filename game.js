@@ -1,3 +1,39 @@
+// src/input.ts
+var action = {
+  discrete: { x: undefined, y: undefined },
+  analog: { dx: undefined, dy: undefined }
+};
+var resetAction = () => {
+  action.discrete.x = undefined;
+  action.discrete.y = undefined;
+  action.analog.dx = undefined;
+  action.analog.dy = undefined;
+};
+var initializeKeyboard = () => {
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") {
+      action.discrete.x = -1;
+    }
+    if (e.key === "ArrowRight") {
+      action.discrete.x = 1;
+    }
+    if (e.key === "ArrowUp") {
+      action.discrete.y = -1;
+    }
+    if (e.key === "ArrowDown") {
+      action.discrete.y = 1;
+    }
+  });
+};
+var getAction = () => {
+  const result = {
+    discrete: { ...action.discrete },
+    analog: { ...action.analog }
+  };
+  resetAction();
+  return result;
+};
+
 // src/diagnostic.ts
 var EMPTY = "·";
 var VISITED = "o";
@@ -434,6 +470,99 @@ function render(ctx, state) {
       ctx.stroke();
     }
   }
+  const cellCenter = (addr) => ({
+    x: mazeX + addr.col * cellSize + cellSize / 2,
+    y: mazeY + addr.row * cellSize + cellSize / 2
+  });
+  const goal = cellCenter(maze.end);
+  drawEarth(ctx, goal.x, goal.y, cellSize);
+  const player = cellCenter(state.playerPosition);
+  drawRocket(ctx, player.x, player.y, cellSize);
+}
+function drawEarth(ctx, cx, cy, cellSize) {
+  const r = cellSize * 0.34;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#2f6fd0";
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = "#3fa34d";
+  const blobs = [
+    [-r * 0.35, -r * 0.25, r * 0.5],
+    [r * 0.4, r * 0.05, r * 0.42],
+    [-r * 0.05, r * 0.55, r * 0.33]
+  ];
+  for (const [bx, by, br] of blobs) {
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "black";
+  ctx.stroke();
+  ctx.restore();
+}
+function drawRocket(ctx, cx, cy, cellSize) {
+  const halfW = cellSize * 0.13;
+  const noseTop = -cellSize * 0.3;
+  const bodyTop = -cellSize * 0.1;
+  const bodyBottom = cellSize * 0.22;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "black";
+  ctx.fillStyle = "#d1453b";
+  const finDrop = cellSize * 0.12;
+  const finOut = cellSize * 0.11;
+  ctx.beginPath();
+  ctx.moveTo(halfW, bodyBottom - finDrop);
+  ctx.lineTo(halfW + finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-halfW, bodyBottom - finDrop);
+  ctx.lineTo(-halfW - finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(-halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f4a323";
+  ctx.beginPath();
+  ctx.moveTo(-halfW * 0.6, bodyBottom);
+  ctx.lineTo(0, bodyBottom + cellSize * 0.16);
+  ctx.lineTo(halfW * 0.6, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f2f2f2";
+  ctx.beginPath();
+  ctx.rect(-halfW, bodyTop, halfW * 2, bodyBottom - bodyTop);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d1453b";
+  ctx.beginPath();
+  ctx.moveTo(0, noseTop);
+  ctx.lineTo(halfW, bodyTop);
+  ctx.lineTo(-halfW, bodyTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#7ec8e3";
+  ctx.beginPath();
+  ctx.arc(0, bodyTop + cellSize * 0.08, cellSize * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // src/game.ts
@@ -462,17 +591,38 @@ function resize() {
 }
 resize();
 window.addEventListener("resize", resize);
+initializeKeyboard();
+var update = (s, action2) => {
+  let moved = false;
+  if (!moved && action2.discrete.x !== undefined && action2.discrete.x != 0) {
+    const current = s.playerPosition;
+    const next = { row: current.row, col: current.col + action2.discrete.x };
+    if (connected(current, next, s.maze)) {
+      s.playerPosition = next;
+      moved = true;
+    }
+  }
+  if (!moved && action2.discrete.y !== undefined && action2.discrete.y != 0) {
+    const current = s.playerPosition;
+    const next = { row: current.row + action2.discrete.y, col: current.col };
+    if (connected(current, next, s.maze)) {
+      s.playerPosition = next;
+      moved = true;
+    }
+  }
+};
 var loop = () => {
   let last = performance.now();
   function frame(now) {
     const dt = (now - last) / 1000;
     last = now;
-    render(context, maze);
+    update(state, getAction());
+    render(context, state);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 };
 loop();
 
-//# debugId=052CA965B3A48F7364756E2164756E21
+//# debugId=CE6C5539324E276564756E2164756E21
 //# sourceMappingURL=game.js.map

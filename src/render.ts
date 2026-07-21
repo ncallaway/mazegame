@@ -58,8 +58,137 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
     }
   }
 
-  // 3. for each cell, for each of its 4 sides: draw a wall line
-  //    UNLESS there's an edge through that side (cellsConnected)
-  // 4. draw start (state.maze.start) and end markers
-  // 5. draw player at (player.x * cellSize, player.y * cellSize)
+  // center of a cell in canvas pixels
+  const cellCenter = (addr: MazeAddress) => ({
+    x: mazeX + addr.col * cellSize + cellSize / 2,
+    y: mazeY + addr.row * cellSize + cellSize / 2,
+  });
+
+  // goal (earth) and player (rocket)
+  const goal = cellCenter(maze.end);
+  drawEarth(ctx, goal.x, goal.y, cellSize);
+
+  const player = cellCenter(state.playerPosition);
+  drawRocket(ctx, player.x, player.y, cellSize);
+}
+
+// A simple planet earth: blue ocean, a few green continents, black outline.
+function drawEarth(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+): void {
+  const r = cellSize * 0.34;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+
+  // ocean
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#2f6fd0";
+  ctx.fill();
+
+  // continents, clipped to the globe so they never spill past the edge
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = "#3fa34d";
+  const blobs: [number, number, number][] = [
+    [-r * 0.35, -r * 0.25, r * 0.5],
+    [r * 0.4, r * 0.05, r * 0.42],
+    [-r * 0.05, r * 0.55, r * 0.33],
+  ];
+  for (const [bx, by, br] of blobs) {
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // outline (drawn last so it sits on top of the continents)
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "black";
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// A simple upright rocket: white body, red nose and fins, a window, a flame.
+function drawRocket(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+): void {
+  const halfW = cellSize * 0.13;
+  const noseTop = -cellSize * 0.3;
+  const bodyTop = -cellSize * 0.1;
+  const bodyBottom = cellSize * 0.22;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "black";
+
+  // fins (behind the body so the body overlaps them)
+  ctx.fillStyle = "#d1453b";
+  const finDrop = cellSize * 0.12;
+  const finOut = cellSize * 0.11;
+  // right fin
+  ctx.beginPath();
+  ctx.moveTo(halfW, bodyBottom - finDrop);
+  ctx.lineTo(halfW + finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // left fin
+  ctx.beginPath();
+  ctx.moveTo(-halfW, bodyBottom - finDrop);
+  ctx.lineTo(-halfW - finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(-halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // flame
+  ctx.fillStyle = "#f4a323";
+  ctx.beginPath();
+  ctx.moveTo(-halfW * 0.6, bodyBottom);
+  ctx.lineTo(0, bodyBottom + cellSize * 0.16);
+  ctx.lineTo(halfW * 0.6, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // body
+  ctx.fillStyle = "#f2f2f2";
+  ctx.beginPath();
+  ctx.rect(-halfW, bodyTop, halfW * 2, bodyBottom - bodyTop);
+  ctx.fill();
+  ctx.stroke();
+
+  // nose cone
+  ctx.fillStyle = "#d1453b";
+  ctx.beginPath();
+  ctx.moveTo(0, noseTop);
+  ctx.lineTo(halfW, bodyTop);
+  ctx.lineTo(-halfW, bodyTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // window
+  ctx.fillStyle = "#7ec8e3";
+  ctx.beginPath();
+  ctx.arc(0, bodyTop + cellSize * 0.08, cellSize * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
 }
