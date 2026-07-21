@@ -134,6 +134,10 @@ var cellsConnected = (a, b, edges) => {
   const key = edgeKey(a, b);
   return edges.has(key);
 };
+var connected = (a, b, maze) => {
+  const key = edgeKey(a, b);
+  return maze.edges.has(key);
+};
 var generateMaze = (params) => {
   const size = params.size;
   console.log(`Generating: ${size.width}x${size.height} maze`);
@@ -384,7 +388,91 @@ class MazeAddressSet {
     return this.#items.length;
   }
 }
-generateMaze({ size: { width: 4, height: 4 }, goalDistanceMin: 4, goalDistanceMax: 8 });
 
-//# debugId=94E5C580CA81DD5B64756E2164756E21
-//# sourceMappingURL=maze.js.map
+// src/render.ts
+function render(ctx, state) {
+  const maze = state.maze;
+  const width = ctx.canvas.clientWidth;
+  const height = ctx.canvas.clientHeight;
+  ctx.clearRect(0, 0, ctx.canvas.width, height);
+  const cellWidth = Math.floor(width / maze.size.width);
+  const cellHeight = Math.floor(height / maze.size.height);
+  const cellSize = Math.min(cellWidth, cellHeight);
+  const mazeWidth = cellSize * maze.size.width;
+  const mazeHeight = cellSize * maze.size.height;
+  const mazeX = (width - mazeWidth) / 2;
+  const mazeY = (height - mazeHeight) / 2;
+  for (let row = 0;row < maze.size.height; row++) {
+    for (let col = 0;col < maze.size.width; col++) {
+      ctx.fillStyle = (row + col) % 2 == 0 ? "blue" : "green";
+      const cellX = mazeX + col * cellSize;
+      const cellY = mazeY + row * cellSize;
+      const cell = { row, col };
+      const left = { row, col: col - 1 };
+      const right = { row, col: col + 1 };
+      const top = { row: row - 1, col };
+      const bottom = { row: row + 1, col };
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      if (!connected(cell, left, maze)) {
+        ctx.moveTo(cellX, cellY);
+        ctx.lineTo(cellX, cellY + cellSize);
+      }
+      if (!connected(cell, right, maze)) {
+        ctx.moveTo(cellX + cellSize, cellY);
+        ctx.lineTo(cellX + cellSize, cellY + cellSize);
+      }
+      if (!connected(cell, top, maze)) {
+        ctx.moveTo(cellX, cellY);
+        ctx.lineTo(cellX + cellSize, cellY);
+      }
+      if (!connected(cell, bottom, maze)) {
+        ctx.moveTo(cellX, cellY + cellSize);
+        ctx.lineTo(cellX + cellSize, cellY + cellSize);
+      }
+      ctx.stroke();
+    }
+  }
+}
+
+// src/game.ts
+var LEVELS = [
+  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 }
+];
+console.log("level 1");
+var maze = generateMaze(LEVELS[0]);
+var state = {
+  maze,
+  playerPosition: maze.start
+};
+var el = document.querySelector("#game-output");
+if (!el) {
+  throw new Error("canvas #game-output not found");
+}
+var context = el.getContext("2d");
+if (!context) {
+  throw new Error("canvas 2d context not found");
+}
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  el.width = el.clientWidth * dpr;
+  el.height = el.clientHeight * dpr;
+  context.scale(dpr, dpr);
+}
+resize();
+window.addEventListener("resize", resize);
+var loop = () => {
+  let last = performance.now();
+  function frame(now) {
+    const dt = (now - last) / 1000;
+    last = now;
+    render(context, maze);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+};
+loop();
+
+//# debugId=052CA965B3A48F7364756E2164756E21
+//# sourceMappingURL=game.js.map

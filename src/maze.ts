@@ -5,41 +5,24 @@ const SHOW_STEPS = true;
 
 console.log("hello world!");
 
-/*
- * type MazeAddress = { row: int; col: int; }
- * type MazeCell = 'n' | 's' | 'e' | 'w'
- * type Maze = {
- *   definition: MazeDefinition;
- *   cells: MazeCell[][];
- *   start: MazeAddress;
- *   end: MazeAddress;
- * }
- * type MazeDefinition = {
- *   width: int;
- *   height: int;
- *   start: MazeAddress;
- *   end: MazeAddress;
- * }
- */
-
-type Maze = {
+export type Maze = {
   size: MazeSize;
   edges: Set<string>;
   start: MazeAddress;
   end: MazeAddress;
 }
 
-type MazeAddress = {
+export type MazeAddress = {
   row: number;
   col: number;
 }
 
-type MazeSize = {
+export type MazeSize = {
   width: number;
   height: number;
 }
 
-type MazeParameters = {
+export type MazeParameters = {
   size: MazeSize;
   goalDistanceMin: number;
   goalDistanceMax: number;
@@ -61,7 +44,12 @@ const cellsConnected = (a: MazeAddress, b: MazeAddress, edges: Set<string>) => {
   return edges.has(key);
 }
 
-const generateMaze = (params: MazeParameters): Maze => {
+export const connected = (a: MazeAddress, b: MazeAddress, maze: Maze) => {
+  const key = edgeKey(a, b);
+  return maze.edges.has(key);
+}
+
+export const generateMaze = (params: MazeParameters): Maze => {
   const size = params.size;
 
   console.log(`Generating: ${size.width}x${size.height} maze`);
@@ -362,5 +350,3 @@ class MazeAddressSet<T = void> {
     return this.#items.length;
   }
 }
-
-generateMaze({ size: { width: 4, height: 4 }, goalDistanceMin: 4, goalDistanceMax: 8 });
