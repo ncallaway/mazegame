@@ -242,7 +242,26 @@ const selectNextCell = (current: MazeAddress, prior: MazeAddress | undefined, si
   return options[Math.floor(Math.random() * options.length)];
 }
 
-const addrEqual = (a: MazeAddress | undefined, b: MazeAddress | undefined) => (!a && !b) || (a?.row == b?.row && a?.col == b?.col);
+export const addrEqual = (a: MazeAddress | undefined, b: MazeAddress | undefined) => (!a && !b) || (a?.row == b?.row && a?.col == b?.col);
+
+// Path (inclusive) from `from` to `to`, following carved passages.
+// The maze is a spanning tree, so this path is unique. Reuses the same
+// predecessor-map walk as selectMazeGoal / findSolutionMapDistance.
+export const computePath = (maze: Maze, from: MazeAddress, to: MazeAddress): MazeAddress[] => {
+  if (addrEqual(from, to)) { return [from]; }
+
+  const solutionMap = buildSolutionMap(from, maze.size, maze.edges);
+
+  // walk from `to` back to `from` via the predecessor map, then reverse
+  const path: MazeAddress[] = [];
+  let curr: MazeAddress | undefined = to;
+  while (curr) {
+    path.push(curr);
+    if (addrEqual(curr, from)) { break; }
+    curr = solutionMap.get(curr);
+  }
+  return path.reverse();
+}
 const isInMaze = (addr: MazeAddress, size: MazeSize): boolean => {
   return addr.row >= 0 && addr.row < size.height && addr.col >= 0 && addr.col < size.width;
 }

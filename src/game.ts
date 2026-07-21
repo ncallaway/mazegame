@@ -1,7 +1,8 @@
-import { getAction, initializeKeyboard, InputAction } from './input';
-import { connected, generateMaze, Maze, MazeAddress, MazeParameters} from './maze';
+import { getAction, initializeKeyboard } from './input';
+import { generateMaze, MazeParameters} from './maze';
 import { render } from './render';
 import { MazeState } from './state';
+import { update } from './update';
 
 
 const LEVELS: MazeParameters[] = [
@@ -24,8 +25,11 @@ const mazeState: MazeState = {
   maze,
   targetPosition: undefined,
   playerPosition: maze.start,
+  playerOrientation: 0,
+  playerRotationalVelocity: 0,
   physicalPosition: { x: 0.5, y: 0.5 },
   physicalVelocity: { x: 0, y: 0 },
+  path: undefined,
 }
 
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
@@ -47,35 +51,15 @@ resize();
 window.addEventListener("resize", resize);
 initializeKeyboard();
 
-const update = (s: MazeState, action: InputAction) => {
-  let moved = false;
-
-  if (!moved && action.discrete.x !== undefined && action.discrete.x != 0) {
-    const current = s.targetPosition ?? s.playerPosition;
-    const next = { row: current.row, col: current.col + action.discrete.x };
-    if (connected(current, next, s.maze)) {
-      s.targetPosition = next;
-      moved = true;
-    }
-  }
-
-  if (!moved && action.discrete.y !== undefined && action.discrete.y != 0) {
-    const current = s.targetPosition ?? s.playerPosition;
-    const next = { row: current.row + action.discrete.y, col: current.col};
-    if (connected(current, next, s.maze)) {
-      s.targetPosition = next;
-      moved = true;
-    }
-  }
-
-};
+// Recompute the player -> target path only when an endpoint cell actually
+// changed. `undefined` target => `undefined` path.
 
 const loop = () => {
   let last = performance.now();
   function frame(now: number) {
     const dt = (now - last) / 1000;  // seconds
     last = now;
-    update(mazeState, getAction());
+    update(mazeState, getAction(), dt);
     render(context, mazeState);
     requestAnimationFrame(frame);
   }

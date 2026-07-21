@@ -70,13 +70,43 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
 
+  // path breadcrumbs, drawn under the markers
+  if (state.path && state.path.length > 1) {
+    drawPath(ctx, state.path.map(cellCenter), cellSize);
+  }
+
   const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
-  drawRocket(ctx, player.x, player.y, cellSize);
+  drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
 
   if (state.targetPosition) {
     const target = cellCenter(state.targetPosition);
     drawTarget(ctx, target.x, target.y, cellSize);
   }
+}
+
+// Small dots evenly spaced along the path (4 per cell), none landing on a
+// cell center so they don't collide with the rocket or target markers.
+function drawPath(
+  ctx: CanvasRenderingContext2D,
+  centers: { x: number; y: number }[],
+  cellSize: number,
+): void {
+  if (centers.length < 2) { return; }
+  const dotR = cellSize * 0.035;
+  const offsets = [0.125, 0.375, 0.625, 0.875];
+
+  ctx.save();
+  ctx.fillStyle = "#ffffff77";
+  for (let i = 1; i < centers.length; i++) {
+    const a = centers[i - 1];
+    const b = centers[i];
+    for (const t of offsets) {
+      ctx.beginPath();
+      ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 // A simple planet earth: blue ocean, a few green continents, black outline.
@@ -124,32 +154,37 @@ function drawEarth(
   ctx.restore();
 }
 
-// A simple upright rocket: white body, red nose and fins, a window, a flame.
+// A simple rocket: white body, red nose and fins, a window, a flame.
+// The sprite is modeled nose-up (toward -y); `orientation` (radians, atan2
+// convention with +x right and +y down) rotates it to face its heading.
 function drawRocket(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   cellSize: number,
+  orientation: number,
 ): void {
-  const halfW = cellSize * 0.13;
-  const noseTop = -cellSize * 0.3;
-  const bodyTop = -cellSize * 0.1;
-  const bodyBottom = cellSize * 0.22;
+  const s = cellSize * (2 / 3); // rocket is 1/3 smaller than a cell-scaled sprite
+  const halfW = s * 0.13;
+  const noseTop = -s * 0.3;
+  const bodyTop = -s * 0.1;
+  const bodyBottom = s * 0.22;
 
   ctx.save();
   ctx.translate(cx, cy);
+  ctx.rotate(orientation + Math.PI / 2); // nose-up sprite (-y) → heading
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.strokeStyle = "black";
 
   // fins (behind the body so the body overlaps them)
   ctx.fillStyle = "#d1453b";
-  const finDrop = cellSize * 0.12;
-  const finOut = cellSize * 0.11;
+  const finDrop = s * 0.12;
+  const finOut = s * 0.11;
   // right fin
   ctx.beginPath();
   ctx.moveTo(halfW, bodyBottom - finDrop);
-  ctx.lineTo(halfW + finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(halfW + finOut, bodyBottom + s * 0.05);
   ctx.lineTo(halfW, bodyBottom);
   ctx.closePath();
   ctx.fill();
@@ -157,7 +192,7 @@ function drawRocket(
   // left fin
   ctx.beginPath();
   ctx.moveTo(-halfW, bodyBottom - finDrop);
-  ctx.lineTo(-halfW - finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(-halfW - finOut, bodyBottom + s * 0.05);
   ctx.lineTo(-halfW, bodyBottom);
   ctx.closePath();
   ctx.fill();
@@ -167,7 +202,7 @@ function drawRocket(
   ctx.fillStyle = "#f4a323";
   ctx.beginPath();
   ctx.moveTo(-halfW * 0.6, bodyBottom);
-  ctx.lineTo(0, bodyBottom + cellSize * 0.16);
+  ctx.lineTo(0, bodyBottom + s * 0.16);
   ctx.lineTo(halfW * 0.6, bodyBottom);
   ctx.closePath();
   ctx.fill();
@@ -193,7 +228,7 @@ function drawRocket(
   // window
   ctx.fillStyle = "#7ec8e3";
   ctx.beginPath();
-  ctx.arc(0, bodyTop + cellSize * 0.08, cellSize * 0.06, 0, Math.PI * 2);
+  ctx.arc(0, bodyTop + s * 0.08, s * 0.06, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 

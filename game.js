@@ -1,3 +1,18 @@
+var __defProp = Object.defineProperty;
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: __exportSetter.bind(all, name)
+    });
+};
+
 // src/input.ts
 var action = {
   discrete: { x: undefined, y: undefined },
@@ -336,6 +351,22 @@ var selectNextCell = (current, prior, size, path, visited) => {
   return options[Math.floor(Math.random() * options.length)];
 };
 var addrEqual = (a, b) => !a && !b || a?.row == b?.row && a?.col == b?.col;
+var computePath = (maze, from, to) => {
+  if (addrEqual(from, to)) {
+    return [from];
+  }
+  const solutionMap = buildSolutionMap(from, maze.size, maze.edges);
+  const path = [];
+  let curr = to;
+  while (curr) {
+    path.push(curr);
+    if (addrEqual(curr, from)) {
+      break;
+    }
+    curr = solutionMap.get(curr);
+  }
+  return path.reverse();
+};
 var isInMaze = (addr, size) => {
   return addr.row >= 0 && addr.row < size.height && addr.col >= 0 && addr.col < size.width;
 };
@@ -477,12 +508,34 @@ function render(ctx, state) {
   const cellCenter = (addr) => cellPosition(addr, 0.5, 0.5);
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
+  if (state.path && state.path.length > 1) {
+    drawPath(ctx, state.path.map(cellCenter), cellSize);
+  }
   const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
-  drawRocket(ctx, player.x, player.y, cellSize);
+  drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
   if (state.targetPosition) {
     const target = cellCenter(state.targetPosition);
     drawTarget(ctx, target.x, target.y, cellSize);
   }
+}
+function drawPath(ctx, centers, cellSize) {
+  if (centers.length < 2) {
+    return;
+  }
+  const dotR = cellSize * 0.035;
+  const offsets = [0.125, 0.375, 0.625, 0.875];
+  ctx.save();
+  ctx.fillStyle = "#ffffff77";
+  for (let i = 1;i < centers.length; i++) {
+    const a = centers[i - 1];
+    const b = centers[i];
+    for (const t of offsets) {
+      ctx.beginPath();
+      ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 function drawEarth(ctx, cx, cy, cellSize) {
   const r = cellSize * 0.34;
@@ -514,29 +567,31 @@ function drawEarth(ctx, cx, cy, cellSize) {
   ctx.stroke();
   ctx.restore();
 }
-function drawRocket(ctx, cx, cy, cellSize) {
-  const halfW = cellSize * 0.13;
-  const noseTop = -cellSize * 0.3;
-  const bodyTop = -cellSize * 0.1;
-  const bodyBottom = cellSize * 0.22;
+function drawRocket(ctx, cx, cy, cellSize, orientation) {
+  const s = cellSize * (2 / 3);
+  const halfW = s * 0.13;
+  const noseTop = -s * 0.3;
+  const bodyTop = -s * 0.1;
+  const bodyBottom = s * 0.22;
   ctx.save();
   ctx.translate(cx, cy);
+  ctx.rotate(orientation + Math.PI / 2);
   ctx.lineWidth = 2;
   ctx.lineJoin = "round";
   ctx.strokeStyle = "black";
   ctx.fillStyle = "#d1453b";
-  const finDrop = cellSize * 0.12;
-  const finOut = cellSize * 0.11;
+  const finDrop = s * 0.12;
+  const finOut = s * 0.11;
   ctx.beginPath();
   ctx.moveTo(halfW, bodyBottom - finDrop);
-  ctx.lineTo(halfW + finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(halfW + finOut, bodyBottom + s * 0.05);
   ctx.lineTo(halfW, bodyBottom);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(-halfW, bodyBottom - finDrop);
-  ctx.lineTo(-halfW - finOut, bodyBottom + cellSize * 0.05);
+  ctx.lineTo(-halfW - finOut, bodyBottom + s * 0.05);
   ctx.lineTo(-halfW, bodyBottom);
   ctx.closePath();
   ctx.fill();
@@ -544,7 +599,7 @@ function drawRocket(ctx, cx, cy, cellSize) {
   ctx.fillStyle = "#f4a323";
   ctx.beginPath();
   ctx.moveTo(-halfW * 0.6, bodyBottom);
-  ctx.lineTo(0, bodyBottom + cellSize * 0.16);
+  ctx.lineTo(0, bodyBottom + s * 0.16);
   ctx.lineTo(halfW * 0.6, bodyBottom);
   ctx.closePath();
   ctx.fill();
@@ -564,7 +619,7 @@ function drawRocket(ctx, cx, cy, cellSize) {
   ctx.stroke();
   ctx.fillStyle = "#7ec8e3";
   ctx.beginPath();
-  ctx.arc(0, bodyTop + cellSize * 0.08, cellSize * 0.06, 0, Math.PI * 2);
+  ctx.arc(0, bodyTop + s * 0.08, s * 0.06, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
@@ -586,38 +641,313 @@ function drawTarget(ctx, cx, cy, cellSize) {
   ctx.restore();
 }
 
-// src/game.ts
-var LEVELS = [
-  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
-  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
-];
-console.log("level 1");
-var maze = generateMaze(LEVELS[0]);
-var mazeState = {
-  maze,
-  targetPosition: undefined,
-  playerPosition: maze.start,
-  physicalPosition: { x: 0.5, y: 0.5 },
-  physicalVelocity: { x: 0, y: 0 }
+// src/constants/ship.ts
+var SHIP_TARGET_ROTATIONAL_VELOCITY = 16;
+var SHIP_MAX_ROTATIONAL_ACCELERATION = 60;
+var SHIP_BRAKE_SAFETY = 0.9;
+var SHIP_ORIENTATION_SNAP_EPSILON = 0.03;
+var SHIP_ROTATIONAL_VELOCITY_SNAP_EPSILON = 0.5;
+// node_modules/gl-matrix/esm/vec2.js
+var exports_vec2 = {};
+__export(exports_vec2, {
+  zero: () => zero,
+  transformMat4: () => transformMat4,
+  transformMat3: () => transformMat3,
+  transformMat2d: () => transformMat2d,
+  transformMat2: () => transformMat2,
+  subtract: () => subtract,
+  sub: () => sub,
+  str: () => str,
+  squaredLength: () => squaredLength,
+  squaredDistance: () => squaredDistance,
+  sqrLen: () => sqrLen,
+  sqrDist: () => sqrDist,
+  signedAngle: () => signedAngle,
+  set: () => set,
+  scaleAndAdd: () => scaleAndAdd,
+  scale: () => scale,
+  round: () => round2,
+  rotate: () => rotate,
+  random: () => random,
+  normalize: () => normalize,
+  negate: () => negate,
+  multiply: () => multiply,
+  mul: () => mul,
+  min: () => min,
+  max: () => max,
+  lerp: () => lerp,
+  length: () => length,
+  len: () => len,
+  inverse: () => inverse,
+  fromValues: () => fromValues,
+  forEach: () => forEach,
+  floor: () => floor,
+  exactEquals: () => exactEquals,
+  equals: () => equals,
+  dot: () => dot,
+  divide: () => divide,
+  div: () => div,
+  distance: () => distance,
+  dist: () => dist,
+  cross: () => cross,
+  create: () => create,
+  copy: () => copy,
+  clone: () => clone,
+  ceil: () => ceil,
+  angle: () => angle,
+  add: () => add
+});
+
+// node_modules/gl-matrix/esm/common.js
+var EPSILON = 0.000001;
+var ARRAY_TYPE = typeof Float32Array !== "undefined" ? Float32Array : Array;
+var RANDOM = Math.random;
+function round(a) {
+  if (a >= 0)
+    return Math.round(a);
+  return a % 0.5 === 0 ? Math.floor(a) : Math.round(a);
+}
+var degree = Math.PI / 180;
+var radian = 180 / Math.PI;
+
+// node_modules/gl-matrix/esm/vec2.js
+function create() {
+  var out = new ARRAY_TYPE(2);
+  if (ARRAY_TYPE != Float32Array) {
+    out[0] = 0;
+    out[1] = 0;
+  }
+  return out;
+}
+function clone(a) {
+  var out = new ARRAY_TYPE(2);
+  out[0] = a[0];
+  out[1] = a[1];
+  return out;
+}
+function fromValues(x, y) {
+  var out = new ARRAY_TYPE(2);
+  out[0] = x;
+  out[1] = y;
+  return out;
+}
+function copy(out, a) {
+  out[0] = a[0];
+  out[1] = a[1];
+  return out;
+}
+function set(out, x, y) {
+  out[0] = x;
+  out[1] = y;
+  return out;
+}
+function add(out, a, b) {
+  out[0] = a[0] + b[0];
+  out[1] = a[1] + b[1];
+  return out;
+}
+function subtract(out, a, b) {
+  out[0] = a[0] - b[0];
+  out[1] = a[1] - b[1];
+  return out;
+}
+function multiply(out, a, b) {
+  out[0] = a[0] * b[0];
+  out[1] = a[1] * b[1];
+  return out;
+}
+function divide(out, a, b) {
+  out[0] = a[0] / b[0];
+  out[1] = a[1] / b[1];
+  return out;
+}
+function ceil(out, a) {
+  out[0] = Math.ceil(a[0]);
+  out[1] = Math.ceil(a[1]);
+  return out;
+}
+function floor(out, a) {
+  out[0] = Math.floor(a[0]);
+  out[1] = Math.floor(a[1]);
+  return out;
+}
+function min(out, a, b) {
+  out[0] = Math.min(a[0], b[0]);
+  out[1] = Math.min(a[1], b[1]);
+  return out;
+}
+function max(out, a, b) {
+  out[0] = Math.max(a[0], b[0]);
+  out[1] = Math.max(a[1], b[1]);
+  return out;
+}
+function round2(out, a) {
+  out[0] = round(a[0]);
+  out[1] = round(a[1]);
+  return out;
+}
+function scale(out, a, b) {
+  out[0] = a[0] * b;
+  out[1] = a[1] * b;
+  return out;
+}
+function scaleAndAdd(out, a, b, scale2) {
+  out[0] = a[0] + b[0] * scale2;
+  out[1] = a[1] + b[1] * scale2;
+  return out;
+}
+function distance(a, b) {
+  var x = b[0] - a[0], y = b[1] - a[1];
+  return Math.sqrt(x * x + y * y);
+}
+function squaredDistance(a, b) {
+  var x = b[0] - a[0], y = b[1] - a[1];
+  return x * x + y * y;
+}
+function length(a) {
+  var x = a[0], y = a[1];
+  return Math.sqrt(x * x + y * y);
+}
+function squaredLength(a) {
+  var x = a[0], y = a[1];
+  return x * x + y * y;
+}
+function negate(out, a) {
+  out[0] = -a[0];
+  out[1] = -a[1];
+  return out;
+}
+function inverse(out, a) {
+  out[0] = 1 / a[0];
+  out[1] = 1 / a[1];
+  return out;
+}
+function normalize(out, a) {
+  var x = a[0], y = a[1];
+  var len = x * x + y * y;
+  if (len > 0) {
+    len = 1 / Math.sqrt(len);
+  }
+  out[0] = a[0] * len;
+  out[1] = a[1] * len;
+  return out;
+}
+function dot(a, b) {
+  return a[0] * b[0] + a[1] * b[1];
+}
+function cross(out, a, b) {
+  var z = a[0] * b[1] - a[1] * b[0];
+  out[0] = out[1] = 0;
+  out[2] = z;
+  return out;
+}
+function lerp(out, a, b, t) {
+  var ax = a[0], ay = a[1];
+  out[0] = ax + t * (b[0] - ax);
+  out[1] = ay + t * (b[1] - ay);
+  return out;
+}
+function random(out, scale2) {
+  scale2 = scale2 === undefined ? 1 : scale2;
+  var r = RANDOM() * 2 * Math.PI;
+  out[0] = Math.cos(r) * scale2;
+  out[1] = Math.sin(r) * scale2;
+  return out;
+}
+function transformMat2(out, a, m) {
+  var x = a[0], y = a[1];
+  out[0] = m[0] * x + m[2] * y;
+  out[1] = m[1] * x + m[3] * y;
+  return out;
+}
+function transformMat2d(out, a, m) {
+  var x = a[0], y = a[1];
+  out[0] = m[0] * x + m[2] * y + m[4];
+  out[1] = m[1] * x + m[3] * y + m[5];
+  return out;
+}
+function transformMat3(out, a, m) {
+  var x = a[0], y = a[1];
+  out[0] = m[0] * x + m[3] * y + m[6];
+  out[1] = m[1] * x + m[4] * y + m[7];
+  return out;
+}
+function transformMat4(out, a, m) {
+  var x = a[0];
+  var y = a[1];
+  out[0] = m[0] * x + m[4] * y + m[12];
+  out[1] = m[1] * x + m[5] * y + m[13];
+  return out;
+}
+function rotate(out, a, b, rad) {
+  var p0 = a[0] - b[0], p1 = a[1] - b[1], sinC = Math.sin(rad), cosC = Math.cos(rad);
+  out[0] = p0 * cosC - p1 * sinC + b[0];
+  out[1] = p0 * sinC + p1 * cosC + b[1];
+  return out;
+}
+function angle(a, b) {
+  var ax = a[0], ay = a[1], bx = b[0], by = b[1];
+  return Math.abs(Math.atan2(ay * bx - ax * by, ax * bx + ay * by));
+}
+function signedAngle(a, b) {
+  var ax = a[0], ay = a[1], bx = b[0], by = b[1];
+  return Math.atan2(ax * by - ay * bx, ax * bx + ay * by);
+}
+function zero(out) {
+  out[0] = 0;
+  out[1] = 0;
+  return out;
+}
+function str(a) {
+  return "vec2(" + a[0] + ", " + a[1] + ")";
+}
+function exactEquals(a, b) {
+  return a[0] === b[0] && a[1] === b[1];
+}
+function equals(a, b) {
+  var a0 = a[0], a1 = a[1];
+  var b0 = b[0], b1 = b[1];
+  return Math.abs(a0 - b0) <= EPSILON * Math.max(1, Math.abs(a0), Math.abs(b0)) && Math.abs(a1 - b1) <= EPSILON * Math.max(1, Math.abs(a1), Math.abs(b1));
+}
+var len = length;
+var sub = subtract;
+var mul = multiply;
+var div = divide;
+var dist = distance;
+var sqrDist = squaredDistance;
+var sqrLen = squaredLength;
+var forEach = function() {
+  var vec = create();
+  return function(a, stride, offset, count, fn, arg) {
+    var i, l;
+    if (!stride) {
+      stride = 2;
+    }
+    if (!offset) {
+      offset = 0;
+    }
+    if (count) {
+      l = Math.min(count * stride + offset, a.length);
+    } else {
+      l = a.length;
+    }
+    for (i = offset;i < l; i += stride) {
+      vec[0] = a[i];
+      vec[1] = a[i + 1];
+      fn(vec, vec, arg);
+      a[i] = vec[0];
+      a[i + 1] = vec[1];
+    }
+    return a;
+  };
+}();
+// src/update.ts
+var update = (s, action2, dt) => {
+  inputUpdate(s, action2);
+  syncPath(s);
+  orientShip(s, dt);
 };
-var el = document.querySelector("#game-output");
-if (!el) {
-  throw new Error("canvas #game-output not found");
-}
-var context = el.getContext("2d");
-if (!context) {
-  throw new Error("canvas 2d context not found");
-}
-function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  el.width = el.clientWidth * dpr;
-  el.height = el.clientHeight * dpr;
-  context.scale(dpr, dpr);
-}
-resize();
-window.addEventListener("resize", resize);
-initializeKeyboard();
-var update = (s, action2) => {
+var inputUpdate = (s, action2) => {
   let moved = false;
   if (!moved && action2.discrete.x !== undefined && action2.discrete.x != 0) {
     const current = s.targetPosition ?? s.playerPosition;
@@ -636,12 +966,104 @@ var update = (s, action2) => {
     }
   }
 };
+var orientShip = (s, dt) => {
+  const desiredOrientation = idealFacingDirection(s);
+  if (desiredOrientation !== undefined) {
+    const error = wrapAngle(desiredOrientation - s.playerOrientation);
+    if (Math.abs(error) < SHIP_ORIENTATION_SNAP_EPSILON && Math.abs(s.playerRotationalVelocity) < SHIP_ROTATIONAL_VELOCITY_SNAP_EPSILON) {
+      s.playerOrientation = desiredOrientation;
+      s.playerRotationalVelocity = 0;
+      return;
+    }
+  }
+  const targetVel = idealRotationalVelocity(desiredOrientation, s);
+  const maxDelta = SHIP_MAX_ROTATIONAL_ACCELERATION * dt;
+  s.playerRotationalVelocity += clamp(targetVel - s.playerRotationalVelocity, -maxDelta, maxDelta);
+  s.playerOrientation = wrapAngle(s.playerOrientation + s.playerRotationalVelocity * dt);
+};
+var wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+var clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
+var idealRotationalVelocity = (desiredOrientation, s) => {
+  if (desiredOrientation === undefined) {
+    return 0;
+  }
+  const error = wrapAngle(desiredOrientation - s.playerOrientation);
+  const brakeSpeed = Math.sqrt(2 * SHIP_MAX_ROTATIONAL_ACCELERATION * SHIP_BRAKE_SAFETY * Math.abs(error));
+  const speed = Math.min(SHIP_TARGET_ROTATIONAL_VELOCITY, brakeSpeed);
+  return Math.sign(error) * speed;
+};
+var idealFacingDirection = (s) => {
+  if (!s.path || !s.path[1]) {
+    const velocity = exports_vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
+    if (exports_vec2.sqrLen(velocity) > 0.1) {
+      return orientationFromVec2(velocity);
+    }
+    return;
+  }
+  const next = mazeAddressVec2(s.path[1]);
+  const current = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
+  const delta = exports_vec2.sub(exports_vec2.create(), next, current);
+  return orientationFromVec2(delta);
+};
+var orientationFromVec2 = (vec) => {
+  return Math.atan2(vec[1], vec[0]);
+};
+var mazeAddressVec2 = (address, x = 0.5, y = 0.5) => {
+  return exports_vec2.fromValues(address.col + x, address.row + y);
+};
+var syncPath = (s) => {
+  if (s.targetPosition === undefined) {
+    s.path = undefined;
+    return;
+  }
+  const p = s.path;
+  const fresh = p !== undefined && p.length > 0 && addrEqual(p[0], s.playerPosition) && addrEqual(p[p.length - 1], s.targetPosition);
+  if (fresh) {
+    return;
+  }
+  s.path = computePath(s.maze, s.playerPosition, s.targetPosition);
+};
+
+// src/game.ts
+var LEVELS = [
+  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
+  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
+];
+console.log("level 1");
+var maze = generateMaze(LEVELS[0]);
+var mazeState = {
+  maze,
+  targetPosition: undefined,
+  playerPosition: maze.start,
+  playerOrientation: 0,
+  playerRotationalVelocity: 0,
+  physicalPosition: { x: 0.5, y: 0.5 },
+  physicalVelocity: { x: 0, y: 0 },
+  path: undefined
+};
+var el = document.querySelector("#game-output");
+if (!el) {
+  throw new Error("canvas #game-output not found");
+}
+var context = el.getContext("2d");
+if (!context) {
+  throw new Error("canvas 2d context not found");
+}
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  el.width = el.clientWidth * dpr;
+  el.height = el.clientHeight * dpr;
+  context.scale(dpr, dpr);
+}
+resize();
+window.addEventListener("resize", resize);
+initializeKeyboard();
 var loop = () => {
   let last = performance.now();
   function frame(now) {
     const dt = (now - last) / 1000;
     last = now;
-    update(mazeState, getAction());
+    update(mazeState, getAction(), dt);
     render(context, mazeState);
     requestAnimationFrame(frame);
   }
@@ -649,5 +1071,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=81BC59DF4A0D3FF764756E2164756E21
+//# debugId=66216C79D79EFDCD64756E2164756E21
 //# sourceMappingURL=game.js.map
