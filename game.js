@@ -470,14 +470,19 @@ function render(ctx, state) {
       ctx.stroke();
     }
   }
-  const cellCenter = (addr) => ({
-    x: mazeX + addr.col * cellSize + cellSize / 2,
-    y: mazeY + addr.row * cellSize + cellSize / 2
+  const cellPosition = (addr, x, y) => ({
+    x: mazeX + addr.col * cellSize + cellSize * Math.max(Math.min(x, 1), 0),
+    y: mazeY + addr.row * cellSize + cellSize * Math.max(Math.min(y, 1), 0)
   });
+  const cellCenter = (addr) => cellPosition(addr, 0.5, 0.5);
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
-  const player = cellCenter(state.playerPosition);
+  const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
   drawRocket(ctx, player.x, player.y, cellSize);
+  if (state.targetPosition) {
+    const target = cellCenter(state.targetPosition);
+    drawTarget(ctx, target.x, target.y, cellSize);
+  }
 }
 function drawEarth(ctx, cx, cy, cellSize) {
   const r = cellSize * 0.34;
@@ -564,16 +569,36 @@ function drawRocket(ctx, cx, cy, cellSize) {
   ctx.stroke();
   ctx.restore();
 }
+function drawTarget(ctx, cx, cy, cellSize) {
+  const boxSize = cellSize * 0.13;
+  const outlineSize = cellSize * 0.2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#ffffffbb";
+  ctx.fillStyle = "#ffffff99";
+  ctx.beginPath();
+  ctx.rect(-boxSize * 0.5, -boxSize * 0.5, boxSize, boxSize);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.rect(-outlineSize * 0.5, -outlineSize * 0.5, outlineSize, outlineSize);
+  ctx.stroke();
+  ctx.restore();
+}
 
 // src/game.ts
 var LEVELS = [
-  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 }
+  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
+  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
 ];
 console.log("level 1");
 var maze = generateMaze(LEVELS[0]);
-var state = {
+var mazeState = {
   maze,
-  playerPosition: maze.start
+  targetPosition: undefined,
+  playerPosition: maze.start,
+  physicalPosition: { x: 0.5, y: 0.5 },
+  physicalVelocity: { x: 0, y: 0 }
 };
 var el = document.querySelector("#game-output");
 if (!el) {
@@ -595,18 +620,18 @@ initializeKeyboard();
 var update = (s, action2) => {
   let moved = false;
   if (!moved && action2.discrete.x !== undefined && action2.discrete.x != 0) {
-    const current = s.playerPosition;
+    const current = s.targetPosition ?? s.playerPosition;
     const next = { row: current.row, col: current.col + action2.discrete.x };
     if (connected(current, next, s.maze)) {
-      s.playerPosition = next;
+      s.targetPosition = next;
       moved = true;
     }
   }
   if (!moved && action2.discrete.y !== undefined && action2.discrete.y != 0) {
-    const current = s.playerPosition;
+    const current = s.targetPosition ?? s.playerPosition;
     const next = { row: current.row + action2.discrete.y, col: current.col };
     if (connected(current, next, s.maze)) {
-      s.playerPosition = next;
+      s.targetPosition = next;
       moved = true;
     }
   }
@@ -616,13 +641,13 @@ var loop = () => {
   function frame(now) {
     const dt = (now - last) / 1000;
     last = now;
-    update(state, getAction());
-    render(context, state);
+    update(mazeState, getAction());
+    render(context, mazeState);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 };
 loop();
 
-//# debugId=CE6C5539324E276564756E2164756E21
+//# debugId=81BC59DF4A0D3FF764756E2164756E21
 //# sourceMappingURL=game.js.map

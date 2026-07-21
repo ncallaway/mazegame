@@ -5,16 +5,27 @@ import { MazeState } from './state';
 
 
 const LEVELS: MazeParameters[] = [
-  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 }
+  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
+  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
 ]
+
+type GameState = {
+  level: number;
+}
 
 console.log("level 1");
 const maze = generateMaze(LEVELS[0]);
 
+const gameState: GameState = {
+  level: 1
+}
 
-const state: MazeState = {
+const mazeState: MazeState = {
   maze,
-  playerPosition: maze.start
+  targetPosition: undefined,
+  playerPosition: maze.start,
+  physicalPosition: { x: 0.5, y: 0.5 },
+  physicalVelocity: { x: 0, y: 0 },
 }
 
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
@@ -40,19 +51,19 @@ const update = (s: MazeState, action: InputAction) => {
   let moved = false;
 
   if (!moved && action.discrete.x !== undefined && action.discrete.x != 0) {
-    const current = s.playerPosition;
+    const current = s.targetPosition ?? s.playerPosition;
     const next = { row: current.row, col: current.col + action.discrete.x };
     if (connected(current, next, s.maze)) {
-      s.playerPosition = next;
+      s.targetPosition = next;
       moved = true;
     }
   }
 
   if (!moved && action.discrete.y !== undefined && action.discrete.y != 0) {
-    const current = s.playerPosition;
+    const current = s.targetPosition ?? s.playerPosition;
     const next = { row: current.row + action.discrete.y, col: current.col};
     if (connected(current, next, s.maze)) {
-      s.playerPosition = next;
+      s.targetPosition = next;
       moved = true;
     }
   }
@@ -64,8 +75,8 @@ const loop = () => {
   function frame(now: number) {
     const dt = (now - last) / 1000;  // seconds
     last = now;
-    update(state, getAction());
-    render(context, state);
+    update(mazeState, getAction());
+    render(context, mazeState);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

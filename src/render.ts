@@ -58,18 +58,25 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
     }
   }
 
-  // center of a cell in canvas pixels
-  const cellCenter = (addr: MazeAddress) => ({
-    x: mazeX + addr.col * cellSize + cellSize / 2,
-    y: mazeY + addr.row * cellSize + cellSize / 2,
+  const cellPosition = (addr: MazeAddress, x: number, y: number) => ({
+    x: mazeX + addr.col * cellSize + (cellSize * Math.max(Math.min(x, 1), 0)),
+    y: mazeY + addr.row * cellSize + (cellSize * Math.max(Math.min(y, 1), 0)),
   });
+
+  // center of a cell in canvas pixels
+  const cellCenter = (addr: MazeAddress) => cellPosition(addr, 0.5, 0.5);
 
   // goal (earth) and player (rocket)
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
 
-  const player = cellCenter(state.playerPosition);
+  const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
   drawRocket(ctx, player.x, player.y, cellSize);
+
+  if (state.targetPosition) {
+    const target = cellCenter(state.targetPosition);
+    drawTarget(ctx, target.x, target.y, cellSize);
+  }
 }
 
 // A simple planet earth: blue ocean, a few green continents, black outline.
@@ -192,3 +199,32 @@ function drawRocket(
 
   ctx.restore();
 }
+
+
+function drawTarget(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+): void {
+  const boxSize = cellSize * 0.13;
+  const outlineSize = cellSize * 0.2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#ffffffbb";
+  ctx.fillStyle = "#ffffff99";
+
+  ctx.beginPath();
+  ctx.rect(-boxSize*0.5, -boxSize * 0.5, boxSize, boxSize);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.rect(-outlineSize*0.5, -outlineSize * 0.5, outlineSize, outlineSize);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+
