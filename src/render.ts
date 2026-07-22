@@ -127,8 +127,30 @@ function drawPath(
   ctx.restore();
 }
 
-// A simple planet earth: blue ocean, a few green continents, black outline.
+// Earth photo with a baked-in alpha channel (black keyed to transparent). Loaded
+// once; browser decodes async, so we guard on `complete` before drawing.
+const earthImage = new Image();
+earthImage.src = "assets/images/earth_final.png";
+const EARTH_SCALE = 0.85; // sprite width as a fraction of a cell (tune to taste)
+
+// Draw the Earth marker: the photo if it's ready, else the vector globe below.
 function drawEarth(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+): void {
+  if (earthImage.complete && earthImage.naturalWidth > 0) {
+    const w = cellSize * EARTH_SCALE;
+    const h = w * (earthImage.naturalHeight / earthImage.naturalWidth);
+    ctx.drawImage(earthImage, cx - w / 2, cy - h / 2, w, h);
+    return;
+  }
+  drawEarthVector(ctx, cx, cy, cellSize);
+}
+
+// A simple planet earth: blue ocean, a few green continents, black outline.
+function drawEarthVector(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,

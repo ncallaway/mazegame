@@ -583,7 +583,19 @@ function drawPath(ctx, centers, ship, cellSize) {
   }
   ctx.restore();
 }
+var earthImage = new Image;
+earthImage.src = "assets/images/earth_final.png";
+var EARTH_SCALE = 0.85;
 function drawEarth(ctx, cx, cy, cellSize) {
+  if (earthImage.complete && earthImage.naturalWidth > 0) {
+    const w = cellSize * EARTH_SCALE;
+    const h = w * (earthImage.naturalHeight / earthImage.naturalWidth);
+    ctx.drawImage(earthImage, cx - w / 2, cy - h / 2, w, h);
+    return;
+  }
+  drawEarthVector(ctx, cx, cy, cellSize);
+}
+function drawEarthVector(ctx, cx, cy, cellSize) {
   const r = cellSize * 0.34;
   ctx.save();
   ctx.translate(cx, cy);
@@ -1158,8 +1170,10 @@ var canvas = el;
 var ctx = context;
 var nextButton = nextLevelButton;
 nextButton.addEventListener("click", () => {
-  gameState.level += 1;
-  gameState.maze = createMazeState(gameState.level);
+  if (gameState.maze.won) {
+    gameState.level += 1;
+    gameState.maze = createMazeState(gameState.level);
+  }
 });
 var buttonShown = false;
 var syncNextLevelButton = () => {
@@ -1197,5 +1211,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=2DAD1F4BD551AC4B64756E2164756E21
+//# debugId=AF682595557B3AAB64756E2164756E21
 //# sourceMappingURL=game.js.map
