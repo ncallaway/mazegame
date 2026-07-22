@@ -1,38 +1,14 @@
 import { getAction, initializeKeyboard } from './input';
-import { generateMaze, MazeParameters} from './maze';
+import { createMazeState } from './levels';
 import { render } from './render';
-import { MazeState } from './state';
+import { GameState } from './state';
 import { update } from './update';
 
 
-const LEVELS: MazeParameters[] = [
-  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
-  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
-  { size: { width: 10, height: 10 }, goalDistanceMin: 10, goalDistanceMax: 16 }
-]
-
-type GameState = {
-  level: number;
-}
-
-console.log("level 1");
-const maze = generateMaze(LEVELS[0]);
-
 const gameState: GameState = {
-  level: 1
+  level: 1,
+  maze: createMazeState(1)
 }
-
-const mazeState: MazeState = {
-  maze,
-  targetPosition: undefined,
-  playerPosition: maze.start,
-  playerOrientation: 0,
-  playerRotationalVelocity: 0,
-  physicalPosition: { x: 0.5, y: 0.5 },
-  physicalVelocity: { x: 0, y: 0 },
-  path: undefined,
-}
-
 
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
 if (!el) {
@@ -66,8 +42,9 @@ const loop = () => {
   function frame(now: number) {
     const dt = (now - last) / 1000;  // seconds
     last = now;
-    update(mazeState, getAction(), dt);
-    render(ctx, mazeState);
+    const nowSeconds = now / 1000;
+    update(gameState, getAction(), dt, nowSeconds);
+    render(ctx, gameState.maze);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

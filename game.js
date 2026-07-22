@@ -49,7 +49,7 @@ var getAction = () => {
   return result;
 };
 
-// src/diagnostic.ts
+// src/utility/diagnostic.ts
 var EMPTY = "·";
 var VISITED = "o";
 var FILLER = " ";
@@ -171,7 +171,6 @@ var logMazeObject = (maze, label) => {
 
 // src/maze.ts
 var SHOW_STEPS = true;
-console.log("hello world!");
 var createFullSet = (size) => {
   const full = new MazeAddressSet;
   for (let row = 0;row < size.height; row++) {
@@ -462,6 +461,38 @@ class MazeAddressSet {
     return this.#items.length;
   }
 }
+
+// src/levels.ts
+var LEVELS = [
+  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
+  { size: { width: 8, height: 8 }, goalDistanceMin: 10, goalDistanceMax: 20 },
+  { size: { width: 8, height: 8 }, goalDistanceMin: 20, goalDistanceMax: 30 },
+  { size: { width: 9, height: 9 }, goalDistanceMin: 20, goalDistanceMax: 30 },
+  { size: { width: 10, height: 10 }, goalDistanceMin: 20, goalDistanceMax: 40 },
+  { size: { width: 12, height: 10 }, goalDistanceMin: 20, goalDistanceMax: 50 },
+  { size: { width: 14, height: 10 }, goalDistanceMin: 30, goalDistanceMax: 60 },
+  { size: { width: 14, height: 12 }, goalDistanceMin: 30, goalDistanceMax: 70 },
+  { size: { width: 16, height: 12 }, goalDistanceMin: 30, goalDistanceMax: 80 },
+  { size: { width: 18, height: 14 }, goalDistanceMin: 40, goalDistanceMax: 90 },
+  { size: { width: 20, height: 15 }, goalDistanceMin: 80, goalDistanceMax: 100 }
+];
+var createMazeState = (level) => {
+  console.log(`creating maze for level ${level}`);
+  const lvlIdx = level - 1;
+  const lvlParams = LEVELS[lvlIdx] ?? LEVELS[LEVELS.length - 1];
+  const maze = generateMaze(lvlParams);
+  return {
+    maze,
+    targetPosition: undefined,
+    playerPosition: maze.start,
+    playerOrientation: 0,
+    playerRotationalVelocity: 0,
+    physicalPosition: { x: 0.5, y: 0.5 },
+    physicalVelocity: { x: 0, y: 0 },
+    path: undefined,
+    won: undefined
+  };
+};
 
 // src/render.ts
 function render(ctx, state) {
@@ -963,11 +994,17 @@ var forEach = function() {
   };
 }();
 // src/update.ts
-var update = (s, action2, dt) => {
-  inputUpdate(s, action2);
-  syncPath(s);
-  orientShip(s, dt);
-  moveShip(s, dt);
+var update = (s, action2, dt, now) => {
+  const m = s.maze;
+  inputUpdate(m, action2);
+  syncPath(m);
+  orientShip(m, dt);
+  moveShip(m, dt);
+  if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
+    m.won = now;
+    s.level += 1;
+    s.maze = createMazeState(s.level);
+  }
 };
 var inputUpdate = (s, action2) => {
   let moved = false;
@@ -1101,21 +1138,9 @@ var syncPath = (s) => {
 };
 
 // src/game.ts
-var LEVELS = [
-  { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
-  { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
-];
-console.log("level 1");
-var maze = generateMaze(LEVELS[1]);
-var mazeState = {
-  maze,
-  targetPosition: undefined,
-  playerPosition: maze.start,
-  playerOrientation: 0,
-  playerRotationalVelocity: 0,
-  physicalPosition: { x: 0.5, y: 0.5 },
-  physicalVelocity: { x: 0, y: 0 },
-  path: undefined
+var gameState = {
+  level: 1,
+  maze: createMazeState(1)
 };
 var el = document.querySelector("#game-output");
 if (!el) {
@@ -1141,13 +1166,14 @@ var loop = () => {
   function frame(now) {
     const dt = (now - last) / 1000;
     last = now;
-    update(mazeState, getAction(), dt);
-    render(ctx, mazeState);
+    const nowSeconds = now / 1000;
+    update(gameState, getAction(), dt, nowSeconds);
+    render(ctx, gameState.maze);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 };
 loop();
 
-//# debugId=84F5DF94A5C09C9264756E2164756E21
+//# debugId=65E4567830FB407864756E2164756E21
 //# sourceMappingURL=game.js.map

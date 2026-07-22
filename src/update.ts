@@ -1,6 +1,6 @@
 import { InputAction } from "./input";
 import { addrEqual, computePath, connected, MazeAddress } from "./maze";
-import { MazeState } from "./state";
+import { GameState, MazeState } from "./state";
 import {
   SHIP_MAX_ROTATIONAL_ACCELERATION,
   SHIP_TARGET_ROTATIONAL_VELOCITY,
@@ -16,13 +16,23 @@ import {
 } from './constants/ship';
 
 import { vec2 } from "gl-matrix";
+import { createMazeState } from "./levels";
 
-export const update = (s: MazeState, action: InputAction, dt: number) => {
-  inputUpdate(s, action);
-  syncPath(s);
+export const update = (s: GameState, action: InputAction, dt: number, now: number) => {
+  const m = s.maze;
+  inputUpdate(m, action);
+  syncPath(m);
 
-  orientShip(s, dt);
-  moveShip(s, dt);
+  orientShip(m, dt);
+  moveShip(m, dt);
+
+  // check win condition:
+  if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
+    m.won = now;
+
+    s.level += 1;
+    s.maze = createMazeState(s.level)
+  }
 }
 
 const inputUpdate = (s: MazeState, action: InputAction) => {

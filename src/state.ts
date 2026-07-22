@@ -1,5 +1,10 @@
 import { Maze, MazeAddress } from "./maze";
 
+export type GameState = {
+  level: number;
+  maze: MazeState
+}
+
 export type MazeState = {
   maze: Maze;
   targetPosition: MazeAddress | undefined;
@@ -9,4 +14,5 @@ export type MazeState = {
   physicalPosition: { x: number, y: number }; // 0..1 within a cell
   physicalVelocity: { x: number, y: number }; // in "cells per second"
   path: MazeAddress[] | undefined; // player cell -> target cell (inclusive); undefined when no target
+  won: number | undefined; // the time when the player won the maze
 }
