@@ -8,6 +8,7 @@ import { update } from './update';
 const LEVELS: MazeParameters[] = [
   { size: { width: 8, height: 8 }, goalDistanceMin: 6, goalDistanceMax: 10 },
   { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
+  { size: { width: 10, height: 10 }, goalDistanceMin: 10, goalDistanceMax: 16 }
 ]
 
 type GameState = {
@@ -32,8 +33,6 @@ const mazeState: MazeState = {
   path: undefined,
 }
 
-console.log("maze state: ", JSON.stringify(mazeState, null, 2));
-console.log("maze state: ", mazeState);
 
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
 if (!el) {

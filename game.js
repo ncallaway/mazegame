@@ -515,28 +515,36 @@ function render(ctx, state) {
   const cellCenter = (addr) => cellPosition(addr, 0.5, 0.5);
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
-  if (state.path && state.path.length > 1) {
-    drawPath(ctx, state.path.map(cellCenter), cellSize);
-  }
   const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
+  if (state.path && state.path.length > 1) {
+    drawPath(ctx, state.path.map(cellCenter), player, cellSize);
+  }
   drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
   if (state.targetPosition) {
     const target = cellCenter(state.targetPosition);
     drawTarget(ctx, target.x, target.y, cellSize);
   }
 }
-function drawPath(ctx, centers, cellSize) {
+function drawPath(ctx, centers, ship, cellSize) {
   if (centers.length < 2) {
     return;
   }
   const dotR = cellSize * 0.035;
   const offsets = [0.125, 0.375, 0.625, 0.875];
+  const seg0x = centers[1].x - centers[0].x;
+  const seg0y = centers[1].y - centers[0].y;
+  const seg0LenSq = seg0x * seg0x + seg0y * seg0y;
+  const shipArc = seg0LenSq > 0 ? ((ship.x - centers[0].x) * seg0x + (ship.y - centers[0].y) * seg0y) / seg0LenSq : 0;
+  const minArc = shipArc + 0.1;
   ctx.save();
   ctx.fillStyle = "#ffffff77";
   for (let i = 1;i < centers.length; i++) {
     const a = centers[i - 1];
     const b = centers[i];
     for (const t of offsets) {
+      if (i - 1 + t < minArc) {
+        continue;
+      }
       ctx.beginPath();
       ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
       ctx.fill();
@@ -1098,7 +1106,7 @@ var LEVELS = [
   { size: { width: 9, height: 9 }, goalDistanceMin: 8, goalDistanceMax: 14 }
 ];
 console.log("level 1");
-var maze = generateMaze(LEVELS[0]);
+var maze = generateMaze(LEVELS[1]);
 var mazeState = {
   maze,
   targetPosition: undefined,
@@ -1109,8 +1117,6 @@ var mazeState = {
   physicalVelocity: { x: 0, y: 0 },
   path: undefined
 };
-console.log("maze state: ", JSON.stringify(mazeState, null, 2));
-console.log("maze state: ", mazeState);
 var el = document.querySelector("#game-output");
 if (!el) {
   throw new Error("canvas #game-output not found");
@@ -1143,5 +1149,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=B954F0F193F1F8CE64756E2164756E21
+//# debugId=84F5DF94A5C09C9264756E2164756E21
 //# sourceMappingURL=game.js.map

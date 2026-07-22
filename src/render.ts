@@ -70,12 +70,14 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
   const goal = cellCenter(maze.end);
   drawEarth(ctx, goal.x, goal.y, cellSize);
 
-  // path breadcrumbs, drawn under the markers
+  const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
+
+  // path breadcrumbs, drawn under the markers. Dots sit at fixed positions
+  // anchored to cell centers; those the ship has already passed are culled.
   if (state.path && state.path.length > 1) {
-    drawPath(ctx, state.path.map(cellCenter), cellSize);
+    drawPath(ctx, state.path.map(cellCenter), player, cellSize);
   }
 
-  const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
   drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
 
   if (state.targetPosition) {
@@ -84,16 +86,30 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
   }
 }
 
-// Small dots evenly spaced along the path (4 per cell), none landing on a
-// cell center so they don't collide with the rocket or target markers.
+// Small dots at fixed positions along the path (4 per cell), none landing on a
+// cell center so they don't collide with the rocket or target markers. The dots
+// stay put in the world as the ship moves; dots the ship has passed are culled,
+// so spacing never changes — we just draw fewer of them near the ship.
 function drawPath(
   ctx: CanvasRenderingContext2D,
   centers: { x: number; y: number }[],
+  ship: { x: number; y: number },
   cellSize: number,
 ): void {
   if (centers.length < 2) { return; }
   const dotR = cellSize * 0.035;
   const offsets = [0.125, 0.375, 0.625, 0.875];
+
+  // How far the ship has advanced along the first segment, in segment units
+  // (0 = current cell center, 1 = next cell center). Dots up to this point,
+  // plus a small gap so none sits under the ship, are treated as passed.
+  const seg0x = centers[1].x - centers[0].x;
+  const seg0y = centers[1].y - centers[0].y;
+  const seg0LenSq = seg0x * seg0x + seg0y * seg0y;
+  const shipArc = seg0LenSq > 0
+    ? ((ship.x - centers[0].x) * seg0x + (ship.y - centers[0].y) * seg0y) / seg0LenSq
+    : 0;
+  const minArc = shipArc + 0.1;
 
   ctx.save();
   ctx.fillStyle = "#ffffff77";
@@ -101,6 +117,8 @@ function drawPath(
     const a = centers[i - 1];
     const b = centers[i];
     for (const t of offsets) {
+      // Arc position along the whole path (segments are unit length).
+      if ((i - 1) + t < minArc) { continue; }
       ctx.beginPath();
       ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
       ctx.fill();
