@@ -174,6 +174,9 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
 
   let step = 0;
   while (true) {
+    if (step >= 100_000) {
+      throw new Error("Failed to generate a maze after 100k steps");
+    }
     if (SHOW_STEPS) {
       logPath(size, path.toArray(), `step ${step} — current (${current.row},${current.col})`);
     }
@@ -185,8 +188,18 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
     }
     console.log(`next: ${next!.col},${next!.row}`);
+
+    // if *next* is start, then we remove the entire loop from the maze and keep generating the path
+    // *but* we need to handle it carefully because we need to restart from 'start'
     if (addrEqual(next,start)) {
-      console.warn(`selected start cell for next, skipping`);
+      console.log(`loop back to start detected! truncating and then iterating`);
+      // remove the loop from the path: find the index of next in the path:
+      path.truncateAt(0);
+      path.add(start);
+      current = start;
+      prior = undefined;
+
+      // iterate!
       continue;
     }
 

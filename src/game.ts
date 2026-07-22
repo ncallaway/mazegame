@@ -32,6 +32,9 @@ const mazeState: MazeState = {
   path: undefined,
 }
 
+console.log("maze state: ", JSON.stringify(mazeState, null, 2));
+console.log("maze state: ", mazeState);
+
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
 if (!el) {
   throw new Error("canvas #game-output not found");
@@ -41,11 +44,16 @@ if (!context) {
   throw new Error("canvas 2d context not found");
 }
 
+// Capture non-null references after the guards so the deferred closures below
+// (resize/frame) don't see them as possibly-null.
+const canvas: HTMLCanvasElement = el;
+const ctx: CanvasRenderingContext2D = context;
+
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  el.width  = el.clientWidth  * dpr;
-  el.height = el.clientHeight * dpr;
-  context.scale(dpr, dpr);   // so you can draw in CSS pixels
+  canvas.width  = canvas.clientWidth  * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  ctx.scale(dpr, dpr);   // so you can draw in CSS pixels
 }
 resize();
 window.addEventListener("resize", resize);
@@ -60,7 +68,7 @@ const loop = () => {
     const dt = (now - last) / 1000;  // seconds
     last = now;
     update(mazeState, getAction(), dt);
-    render(context, mazeState);
+    render(ctx, mazeState);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

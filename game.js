@@ -290,6 +290,9 @@ var generateMazePath = (size, visited, unvisited) => {
   let current = start;
   let step = 0;
   while (true) {
+    if (step >= 1e5) {
+      throw new Error("Failed to generate a maze after 100k steps");
+    }
     if (SHOW_STEPS) {
       logPath(size, path.toArray(), `step ${step} — current (${current.row},${current.col})`);
     }
@@ -300,7 +303,11 @@ var generateMazePath = (size, visited, unvisited) => {
     }
     console.log(`next: ${next.col},${next.row}`);
     if (addrEqual(next, start)) {
-      console.warn(`selected start cell for next, skipping`);
+      console.log(`loop back to start detected! truncating and then iterating`);
+      path.truncateAt(0);
+      path.add(start);
+      current = start;
+      prior = undefined;
       continue;
     }
     if (visited.has(next)) {
@@ -647,6 +654,12 @@ var SHIP_MAX_ROTATIONAL_ACCELERATION = 60;
 var SHIP_BRAKE_SAFETY = 0.9;
 var SHIP_ORIENTATION_SNAP_EPSILON = 0.03;
 var SHIP_ROTATIONAL_VELOCITY_SNAP_EPSILON = 0.5;
+var SHIP_TARGET_LINEAR_VELOCITY = 4;
+var SHIP_MAX_LINEAR_ACCELERATION = 12;
+var SHIP_LINEAR_BRAKE_SAFETY = 0.9;
+var SHIP_POSITION_SNAP_EPSILON = 0.02;
+var SHIP_LINEAR_VELOCITY_SNAP_EPSILON = 0.3;
+var SHIP_THRUST_ALIGNMENT = Math.PI / 2;
 // node_modules/gl-matrix/esm/vec2.js
 var exports_vec2 = {};
 __export(exports_vec2, {
@@ -946,6 +959,7 @@ var update = (s, action2, dt) => {
   inputUpdate(s, action2);
   syncPath(s);
   orientShip(s, dt);
+  moveShip(s, dt);
 };
 var inputUpdate = (s, action2) => {
   let moved = false;
@@ -980,6 +994,60 @@ var orientShip = (s, dt) => {
   const maxDelta = SHIP_MAX_ROTATIONAL_ACCELERATION * dt;
   s.playerRotationalVelocity += clamp(targetVel - s.playerRotationalVelocity, -maxDelta, maxDelta);
   s.playerOrientation = wrapAngle(s.playerOrientation + s.playerRotationalVelocity * dt);
+};
+var moveShip = (s, dt) => {
+  if (dt < 0) {
+    dt = 0;
+  }
+  if (s.targetPosition && addrEqual(s.playerPosition, s.targetPosition)) {
+    const dx = 0.5 - s.physicalPosition.x;
+    const dy = 0.5 - s.physicalPosition.y;
+    const speedSq = s.physicalVelocity.x ** 2 + s.physicalVelocity.y ** 2;
+    if (dx * dx + dy * dy < SHIP_POSITION_SNAP_EPSILON ** 2 && speedSq < SHIP_LINEAR_VELOCITY_SNAP_EPSILON ** 2) {
+      s.physicalPosition = { x: 0.5, y: 0.5 };
+      s.physicalVelocity = { x: 0, y: 0 };
+      return;
+    }
+  }
+  const worldPos = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
+  const vel = exports_vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
+  const targetVel = idealLinearVelocity(s, worldPos);
+  const maxDelta = SHIP_MAX_LINEAR_ACCELERATION * dt;
+  const dv = exports_vec2.sub(exports_vec2.create(), targetVel, vel);
+  const dvLen = exports_vec2.len(dv);
+  if (dvLen > maxDelta) {
+    exports_vec2.scale(dv, dv, maxDelta / dvLen);
+  }
+  exports_vec2.add(vel, vel, dv);
+  exports_vec2.scaleAndAdd(worldPos, worldPos, vel, dt);
+  s.physicalVelocity = { x: vel[0], y: vel[1] };
+  const newCol = Math.floor(worldPos[0]);
+  const newRow = Math.floor(worldPos[1]);
+  s.physicalPosition = { x: worldPos[0] - newCol, y: worldPos[1] - newRow };
+  if (newCol !== s.playerPosition.col || newRow !== s.playerPosition.row) {
+    s.playerPosition = { row: newRow, col: newCol };
+    syncPath(s);
+  }
+};
+var idealLinearVelocity = (s, worldPos) => {
+  const zero2 = exports_vec2.fromValues(0, 0);
+  if (!s.path || s.path.length === 0) {
+    return zero2;
+  }
+  const waypoint = mazeAddressVec2(s.path[1] ?? s.path[0]);
+  const toWaypoint = exports_vec2.sub(exports_vec2.create(), waypoint, worldPos);
+  const distToWaypoint = exports_vec2.len(toWaypoint);
+  if (distToWaypoint < 0.000001) {
+    return zero2;
+  }
+  const remaining = distToWaypoint + Math.max(0, s.path.length - 2);
+  const dir = exports_vec2.scale(exports_vec2.create(), toWaypoint, 1 / distToWaypoint);
+  const brakeSpeed = Math.sqrt(2 * SHIP_MAX_LINEAR_ACCELERATION * SHIP_LINEAR_BRAKE_SAFETY * remaining);
+  let speed = Math.min(SHIP_TARGET_LINEAR_VELOCITY, brakeSpeed);
+  const headingError = Math.abs(wrapAngle(orientationFromVec2(dir) - s.playerOrientation));
+  const gate = clamp((SHIP_THRUST_ALIGNMENT - headingError) / SHIP_THRUST_ALIGNMENT, 0, 1);
+  speed *= gate;
+  return exports_vec2.scale(exports_vec2.create(), dir, speed);
 };
 var wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 var clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
@@ -1041,6 +1109,8 @@ var mazeState = {
   physicalVelocity: { x: 0, y: 0 },
   path: undefined
 };
+console.log("maze state: ", JSON.stringify(mazeState, null, 2));
+console.log("maze state: ", mazeState);
 var el = document.querySelector("#game-output");
 if (!el) {
   throw new Error("canvas #game-output not found");
@@ -1049,11 +1119,13 @@ var context = el.getContext("2d");
 if (!context) {
   throw new Error("canvas 2d context not found");
 }
+var canvas = el;
+var ctx = context;
 function resize() {
   const dpr = window.devicePixelRatio || 1;
-  el.width = el.clientWidth * dpr;
-  el.height = el.clientHeight * dpr;
-  context.scale(dpr, dpr);
+  canvas.width = canvas.clientWidth * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+  ctx.scale(dpr, dpr);
 }
 resize();
 window.addEventListener("resize", resize);
@@ -1064,12 +1136,12 @@ var loop = () => {
     const dt = (now - last) / 1000;
     last = now;
     update(mazeState, getAction(), dt);
-    render(context, mazeState);
+    render(ctx, mazeState);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 };
 loop();
 
-//# debugId=66216C79D79EFDCD64756E2164756E21
+//# debugId=B954F0F193F1F8CE64756E2164756E21
 //# sourceMappingURL=game.js.map
