@@ -16,11 +16,15 @@ import {
 } from './constants/ship';
 
 import { vec2 } from "gl-matrix";
-import { createMazeState } from "./levels";
 
 export const update = (s: GameState, action: InputAction, dt: number, now: number) => {
   const m = s.maze;
-  inputUpdate(m, action);
+
+  // Once the level is won, freeze input: the ship keeps settling but accepts no
+  // new moves.
+  if (m.won === undefined) {
+    inputUpdate(m, action);
+  }
   syncPath(m);
 
   orientShip(m, dt);
@@ -29,9 +33,6 @@ export const update = (s: GameState, action: InputAction, dt: number, now: numbe
   // check win condition:
   if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
     m.won = now;
-
-    s.level += 1;
-    s.maze = createMazeState(s.level)
   }
 }
 

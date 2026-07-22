@@ -7,3 +7,24 @@ body {
   height: 100vh;
   display: block;
 }
+
+#next-level {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  display: none; /* shown by game.ts once the level is won */
+  padding: 0.75rem 1.75rem;
+  font-family: sans-serif;
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: white;
+  background-color: #d1453b;
+  border: 2px solid black;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+#next-level:hover {
+  background-color: #e85c52;
+}

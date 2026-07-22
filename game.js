@@ -996,14 +996,14 @@ var forEach = function() {
 // src/update.ts
 var update = (s, action2, dt, now) => {
   const m = s.maze;
-  inputUpdate(m, action2);
+  if (m.won === undefined) {
+    inputUpdate(m, action2);
+  }
   syncPath(m);
   orientShip(m, dt);
   moveShip(m, dt);
   if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
     m.won = now;
-    s.level += 1;
-    s.maze = createMazeState(s.level);
   }
 };
 var inputUpdate = (s, action2) => {
@@ -1150,8 +1150,29 @@ var context = el.getContext("2d");
 if (!context) {
   throw new Error("canvas 2d context not found");
 }
+var nextLevelButton = document.querySelector("#next-level");
+if (!nextLevelButton) {
+  throw new Error("button #next-level not found");
+}
 var canvas = el;
 var ctx = context;
+var nextButton = nextLevelButton;
+nextButton.addEventListener("click", () => {
+  gameState.level += 1;
+  gameState.maze = createMazeState(gameState.level);
+});
+var buttonShown = false;
+var syncNextLevelButton = () => {
+  const won = gameState.maze.won !== undefined;
+  if (won === buttonShown) {
+    return;
+  }
+  buttonShown = won;
+  nextButton.style.display = won ? "block" : "none";
+  if (won) {
+    nextButton.focus();
+  }
+};
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = canvas.clientWidth * dpr;
@@ -1169,11 +1190,12 @@ var loop = () => {
     const nowSeconds = now / 1000;
     update(gameState, getAction(), dt, nowSeconds);
     render(ctx, gameState.maze);
+    syncNextLevelButton();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
 };
 loop();
 
-//# debugId=65E4567830FB407864756E2164756E21
+//# debugId=2DAD1F4BD551AC4B64756E2164756E21
 //# sourceMappingURL=game.js.map
