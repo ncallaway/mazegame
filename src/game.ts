@@ -1,13 +1,14 @@
 import { getAction, initializeKeyboard } from './input';
 import { createMazeState } from './levels';
 import { render } from './render';
+import { syncScorebug } from './scorebug';
 import { GameState } from './state';
 import { update } from './update';
 
 
 const gameState: GameState = {
   level: 1,
-  maze: createMazeState(1)
+  maze: createMazeState(1, performance.now() / 1000)
 }
 
 const el = document.querySelector<HTMLCanvasElement>("#game-output");
@@ -30,7 +31,7 @@ const nextButton: HTMLButtonElement = nextLevelButton;
 nextButton.addEventListener("click", () => {
   if (gameState.maze.won) {
     gameState.level += 1;
-    gameState.maze = createMazeState(gameState.level);
+    gameState.maze = createMazeState(gameState.level, performance.now() / 1000);
   }
 });
 
@@ -61,6 +62,7 @@ const loop = () => {
     const nowSeconds = now / 1000;
     update(gameState, getAction(), dt, nowSeconds);
     render(ctx, gameState.maze, nowSeconds);
+    syncScorebug(gameState, nowSeconds);
     syncNextLevelButton();
     requestAnimationFrame(frame);
   }

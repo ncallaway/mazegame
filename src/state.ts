@@ -7,6 +7,10 @@ export type GameState = {
 
 export type MazeState = {
   maze: Maze;
+  started: number; // time the level started
+  targetMoved: number | undefined; // time the cursor moved
+  playerCaughtTarget: boolean;
+  targetSafe: boolean;
   targetPosition: MazeAddress | undefined;
   playerPosition: MazeAddress;
   playerOrientation: number; // radians

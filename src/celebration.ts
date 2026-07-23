@@ -49,16 +49,6 @@ const state: CelebrationState = {
   scheduled: [],
 }
 
-const COLORS = [
-  "#ff2d2d", // vivid red
-  "#ff7a1a", // orange
-  "#ffd21a", // golden yellow
-  "#4dff4d", // bright green
-  "#1affd5", // aqua / cyan
-  "#3b82ff", // electric blue
-  "#c04dff", // violet
-  "#ff4dd2", // magenta / hot pink
-];
 
 export const startCelebration = (at: MazeAddress, now: number) => {
   state.started = now;
@@ -110,7 +100,7 @@ const randomFirework = (at: number): Firework => {
     at,
     direction: Math.random() * Math.PI * 2,
     height: .25 + Math.random() * 0.5,
-    color: Math.floor(Math.random() * COLORS.length),
+    color: Math.floor(Math.random() * FIREWORKS.Colors.length),
     power: powden,
     density: powden,
     duration: 1
@@ -296,7 +286,7 @@ export const renderCelebration = (
     let t = (now - p.at) / p.lifetime;
     t = Math.pow(t, .8);
     ctx.globalAlpha = Math.max(0, Math.min(1, 1 - t));
-    ctx.fillStyle = COLORS[p.color] ?? "#ffffff";
+    ctx.fillStyle = FIREWORKS.Colors[p.color] ?? "#ffffff";
     const s = p.size * cellSize;
     const px = pixelX(p.position[0]);
     const py = pixelY(p.position[1]);

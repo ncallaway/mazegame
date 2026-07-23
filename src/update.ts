@@ -25,7 +25,7 @@ export const update = (s: GameState, action: InputAction, dt: number, now: numbe
   // Once the level is won, freeze input: the ship keeps settling but accepts no
   // new moves.
   if (m.won === undefined) {
-    inputUpdate(m, action);
+    inputUpdate(m, action, now);
   }
   syncPath(m);
   updateCelebration(dt, now);
@@ -42,7 +42,7 @@ export const update = (s: GameState, action: InputAction, dt: number, now: numbe
   }
 }
 
-const inputUpdate = (s: MazeState, action: InputAction) => {
+const inputUpdate = (s: MazeState, action: InputAction, now: number) => {
   let moved = false;
 
   if (!moved && action.discrete.x !== undefined && action.discrete.x != 0) {
@@ -50,6 +50,9 @@ const inputUpdate = (s: MazeState, action: InputAction) => {
     const next = { row: current.row, col: current.col + action.discrete.x };
     if (connected(current, next, s.maze)) {
       s.targetPosition = next;
+      if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
+        s.targetSafe = true;
+      }
       moved = true;
     }
   }
@@ -61,6 +64,10 @@ const inputUpdate = (s: MazeState, action: InputAction) => {
       s.targetPosition = next;
       moved = true;
     }
+  }
+
+  if (moved && !s.targetMoved) {
+    s.targetMoved = now;
   }
 }
 
@@ -124,11 +131,20 @@ const moveShip = (s: MazeState, dt: number) => {
   // Re-derive the cell + fractional position; re-sync the path if the cell changed.
   const newCol = Math.floor(worldPos[0]);
   const newRow = Math.floor(worldPos[1]);
+
+  const newAddr: MazeAddress = { row: newRow, col: newCol };
   s.physicalPosition = { x: worldPos[0] - newCol, y: worldPos[1] - newRow };
   if (newCol !== s.playerPosition.col || newRow !== s.playerPosition.row) {
-    s.playerPosition = { row: newRow, col: newCol };
-    syncPath(s);
+    if (connected(s.playerPosition, newAddr, s.maze)) {
+
+      s.playerPosition = newAddr;
+      if (addrEqual(s.playerPosition, s.targetPosition) && s.targetMoved && !s.targetSafe) {
+        s.playerCaughtTarget = true;
+      }
+      syncPath(s);
+    }
   }
+
 };
 
 const idealLinearVelocity = (s: MazeState, worldPos: vec2): vec2 => {

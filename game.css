@@ -8,6 +8,21 @@ body {
   display: block;
 }
 
+.score-bug {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 5px;
+  margin: 5px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border: 2px solid rgba(0, 0, 0, 0.5);
+  border-radius: 5px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 #next-level {
   position: absolute;
   left: 50%;

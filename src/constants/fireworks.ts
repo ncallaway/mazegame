@@ -11,4 +11,15 @@ export const FIREWORKS = {
   // ambient fireworks are fired after the scheduled show ends
   AmbientMin: 3, // seconds
   AmbientMax: 5, // seconds
+
+  Colors: [
+    "#ff2d2d", // vivid red
+    "#ff7a1a", // orange
+    "#ffd21a", // golden yellow
+    "#4dff4d", // bright green
+    "#1affd5", // aqua / cyan
+    "#3b82ff", // electric blue
+    "#c04dff", // violet
+    "#ff4dd2", // magenta / hot pink
+  ]
 }

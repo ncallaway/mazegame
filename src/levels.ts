@@ -15,7 +15,7 @@ const LEVELS: MazeParameters[] = [
   { size: { width: 20, height: 15 }, goalDistanceMin: 80, goalDistanceMax: 100},
 ]
 
-export const createMazeState = (level: number): MazeState => {
+export const createMazeState = (level: number, now: number): MazeState => {
   console.log(`creating maze for level ${level}`);
   const lvlIdx = level - 1;
   const lvlParams = LEVELS[lvlIdx] ?? LEVELS[LEVELS.length - 1];
@@ -29,6 +29,10 @@ export const createMazeState = (level: number): MazeState => {
     physicalPosition: { x: 0.5, y: 0.5 },
     physicalVelocity: { x: 0, y: 0 },
     path: undefined,
-    won: undefined
+    won: undefined,
+    started: now,
+    targetMoved: undefined,
+    playerCaughtTarget: false,
+    targetSafe: false,
   }
 }

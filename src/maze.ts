@@ -180,7 +180,7 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
     }
     step++;
 
-    const next = selectNextCell(current, prior, size, path, visited);
+    const next = selectNextCell(current, prior, size);
     // if next is undefined, we've failed to generate a maze
     if (!next) {
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
@@ -236,7 +236,7 @@ const generateMazePath = (size: MazeSize, visited: MazeAddressSet, unvisited: Ma
   }
 }
 
-const selectNextCell = (current: MazeAddress, prior: MazeAddress | undefined, size: MazeSize, path: MazeAddressSet, visited: MazeAddressSet): MazeAddress | undefined => {
+const selectNextCell = (current: MazeAddress, prior: MazeAddress | undefined, size: MazeSize): MazeAddress | undefined => {
   const options: MazeAddress[] = [];
   const left: MazeAddress = { row: current.row, col: current.col - 1 };
   const right: MazeAddress = { row: current.row, col: current.col + 1 };

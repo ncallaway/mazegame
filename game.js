@@ -296,7 +296,7 @@ var generateMazePath = (size, visited, unvisited) => {
       logPath(size, path.toArray(), `step ${step} — current (${current.row},${current.col})`);
     }
     step++;
-    const next = selectNextCell(current, prior, size, path, visited);
+    const next = selectNextCell(current, prior, size);
     if (!next) {
       throw new Error("Maze generation failed, because we couldn't generate a next cell!");
     }
@@ -333,7 +333,7 @@ var generateMazePath = (size, visited, unvisited) => {
     current = next;
   }
 };
-var selectNextCell = (current, prior, size, path, visited) => {
+var selectNextCell = (current, prior, size) => {
   const options = [];
   const left = { row: current.row, col: current.col - 1 };
   const right = { row: current.row, col: current.col + 1 };
@@ -476,7 +476,7 @@ var LEVELS = [
   { size: { width: 18, height: 14 }, goalDistanceMin: 40, goalDistanceMax: 90 },
   { size: { width: 20, height: 15 }, goalDistanceMin: 80, goalDistanceMax: 100 }
 ];
-var createMazeState = (level) => {
+var createMazeState = (level, now) => {
   console.log(`creating maze for level ${level}`);
   const lvlIdx = level - 1;
   const lvlParams = LEVELS[lvlIdx] ?? LEVELS[LEVELS.length - 1];
@@ -490,7 +490,11 @@ var createMazeState = (level) => {
     physicalPosition: { x: 0.5, y: 0.5 },
     physicalVelocity: { x: 0, y: 0 },
     path: undefined,
-    won: undefined
+    won: undefined,
+    started: now,
+    targetMoved: undefined,
+    playerCaughtTarget: false,
+    targetSafe: false
   };
 };
 // node_modules/gl-matrix/esm/vec2.js
@@ -816,7 +820,17 @@ var FIREWORKS = {
   ParticleDuration: 2,
   LifetimeSpeedBias: 0.6,
   AmbientMin: 3,
-  AmbientMax: 5
+  AmbientMax: 5,
+  Colors: [
+    "#ff2d2d",
+    "#ff7a1a",
+    "#ffd21a",
+    "#4dff4d",
+    "#1affd5",
+    "#3b82ff",
+    "#c04dff",
+    "#ff4dd2"
+  ]
 };
 
 // src/celebration.ts
@@ -827,16 +841,6 @@ var state = {
   particles: [],
   scheduled: []
 };
-var COLORS = [
-  "#ff2d2d",
-  "#ff7a1a",
-  "#ffd21a",
-  "#4dff4d",
-  "#1affd5",
-  "#3b82ff",
-  "#c04dff",
-  "#ff4dd2"
-];
 var startCelebration = (at, now) => {
   state.started = now;
   state.at = at;
@@ -877,7 +881,7 @@ var randomFirework = (at) => {
     at,
     direction: Math.random() * Math.PI * 2,
     height: 0.25 + Math.random() * 0.5,
-    color: Math.floor(Math.random() * COLORS.length),
+    color: Math.floor(Math.random() * FIREWORKS.Colors.length),
     power: powden,
     density: powden,
     duration: 1
@@ -1016,7 +1020,7 @@ var renderCelebration = (ctx, originX, originY, cellSize, now) => {
     let t = (now - p.at) / p.lifetime;
     t = Math.pow(t, 0.8);
     ctx.globalAlpha = Math.max(0, Math.min(1, 1 - t));
-    ctx.fillStyle = COLORS[p.color] ?? "#ffffff";
+    ctx.fillStyle = FIREWORKS.Colors[p.color] ?? "#ffffff";
     const s = p.size * cellSize;
     const px = pixelX(p.position[0]);
     const py = pixelY(p.position[1]);
@@ -1247,6 +1251,42 @@ function drawTarget(ctx, cx, cy, cellSize) {
   ctx.restore();
 }
 
+// src/scorebug.ts
+var el = {
+  level: document.querySelector(".score-bug .level"),
+  elapsed: document.querySelector(".score-bug .elapsed"),
+  firstMove: document.querySelector(".score-bug .first-move"),
+  target: document.querySelector(".score-bug .target")
+};
+var last = { level: "", elapsed: "", firstMove: "", target: "" };
+var set2 = (node, key, value) => {
+  if (last[key] === value) {
+    return;
+  }
+  last[key] = value;
+  node.textContent = value;
+};
+var fmt = (secs) => {
+  const s = Math.max(0, Math.floor(secs));
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+};
+var syncScorebug = (game, now) => {
+  const m = game.maze;
+  const end = m.won ?? now;
+  set2(el.level, "level", `Level ${game.level}`);
+  set2(el.elapsed, "elapsed", fmt(end - m.started));
+  set2(el.firstMove, "firstMove", m.targetMoved ? fmt(m.targetMoved - m.started) : fmt(now - m.started));
+  let targetMsg = "";
+  if (m.targetSafe && !m.playerCaughtTarget) {
+    targetMsg = "Target got away!";
+  } else if (!m.playerCaughtTarget && m.targetMoved) {
+    targetMsg = "Target is running!";
+  } else if (m.playerCaughtTarget && m.targetMoved) {
+    targetMsg = "Target got caught :/";
+  }
+  set2(el.target, "target", targetMsg);
+};
+
 // src/constants/ship.ts
 var SHIP_TARGET_ROTATIONAL_VELOCITY = 16;
 var SHIP_MAX_ROTATIONAL_ACCELERATION = 60;
@@ -1264,7 +1304,7 @@ var SHIP_THRUST_ALIGNMENT = Math.PI / 2;
 var update = (s, action2, dt, now) => {
   const m = s.maze;
   if (m.won === undefined) {
-    inputUpdate(m, action2);
+    inputUpdate(m, action2, now);
   }
   syncPath(m);
   updateCelebration(dt, now);
@@ -1277,13 +1317,16 @@ var update = (s, action2, dt, now) => {
     stopCelebration();
   }
 };
-var inputUpdate = (s, action2) => {
+var inputUpdate = (s, action2, now) => {
   let moved = false;
   if (!moved && action2.discrete.x !== undefined && action2.discrete.x != 0) {
     const current = s.targetPosition ?? s.playerPosition;
     const next = { row: current.row, col: current.col + action2.discrete.x };
     if (connected(current, next, s.maze)) {
       s.targetPosition = next;
+      if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
+        s.targetSafe = true;
+      }
       moved = true;
     }
   }
@@ -1294,6 +1337,9 @@ var inputUpdate = (s, action2) => {
       s.targetPosition = next;
       moved = true;
     }
+  }
+  if (moved && !s.targetMoved) {
+    s.targetMoved = now;
   }
 };
 var orientShip = (s, dt) => {
@@ -1339,10 +1385,16 @@ var moveShip = (s, dt) => {
   s.physicalVelocity = { x: vel[0], y: vel[1] };
   const newCol = Math.floor(worldPos[0]);
   const newRow = Math.floor(worldPos[1]);
+  const newAddr = { row: newRow, col: newCol };
   s.physicalPosition = { x: worldPos[0] - newCol, y: worldPos[1] - newRow };
   if (newCol !== s.playerPosition.col || newRow !== s.playerPosition.row) {
-    s.playerPosition = { row: newRow, col: newCol };
-    syncPath(s);
+    if (connected(s.playerPosition, newAddr, s.maze)) {
+      s.playerPosition = newAddr;
+      if (addrEqual(s.playerPosition, s.targetPosition) && s.targetMoved && !s.targetSafe) {
+        s.playerCaughtTarget = true;
+      }
+      syncPath(s);
+    }
   }
 };
 var idealLinearVelocity = (s, worldPos) => {
@@ -1405,13 +1457,13 @@ var syncPath = (s) => {
 // src/game.ts
 var gameState = {
   level: 1,
-  maze: createMazeState(1)
+  maze: createMazeState(1, performance.now() / 1000)
 };
-var el = document.querySelector("#game-output");
-if (!el) {
+var el2 = document.querySelector("#game-output");
+if (!el2) {
   throw new Error("canvas #game-output not found");
 }
-var context = el.getContext("2d");
+var context = el2.getContext("2d");
 if (!context) {
   throw new Error("canvas 2d context not found");
 }
@@ -1419,13 +1471,13 @@ var nextLevelButton = document.querySelector("#next-level");
 if (!nextLevelButton) {
   throw new Error("button #next-level not found");
 }
-var canvas = el;
+var canvas = el2;
 var ctx = context;
 var nextButton = nextLevelButton;
 nextButton.addEventListener("click", () => {
   if (gameState.maze.won) {
     gameState.level += 1;
-    gameState.maze = createMazeState(gameState.level);
+    gameState.maze = createMazeState(gameState.level, performance.now() / 1000);
   }
 });
 var buttonShown = false;
@@ -1450,13 +1502,14 @@ resize();
 window.addEventListener("resize", resize);
 initializeKeyboard();
 var loop = () => {
-  let last = performance.now();
+  let last2 = performance.now();
   function frame(now) {
-    const dt = (now - last) / 1000;
-    last = now;
+    const dt = (now - last2) / 1000;
+    last2 = now;
     const nowSeconds = now / 1000;
     update(gameState, getAction(), dt, nowSeconds);
     render(ctx, gameState.maze, nowSeconds);
+    syncScorebug(gameState, nowSeconds);
     syncNextLevelButton();
     requestAnimationFrame(frame);
   }
@@ -1464,5 +1517,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=DEFB7B86C02445C464756E2164756E21
+//# debugId=33C2169B27D5BD5B64756E2164756E21
 //# sourceMappingURL=game.js.map
