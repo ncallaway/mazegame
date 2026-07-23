@@ -50,9 +50,6 @@ const inputUpdate = (s: MazeState, action: InputAction, now: number) => {
     const next = { row: current.row, col: current.col + action.discrete.x };
     if (connected(current, next, s.maze)) {
       s.targetPosition = next;
-      if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
-        s.targetSafe = true;
-      }
       moved = true;
     }
   }
@@ -68,6 +65,12 @@ const inputUpdate = (s: MazeState, action: InputAction, now: number) => {
 
   if (moved && !s.targetMoved) {
     s.targetMoved = now;
+  }
+
+  if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
+    s.targetSafe = true;
+  } else if (addrEqual(s.targetPosition, s.playerPosition) && !s.targetSafe) {
+    s.playerCaughtTarget = true;
   }
 }
 

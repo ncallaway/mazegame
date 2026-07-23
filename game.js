@@ -1324,9 +1324,6 @@ var inputUpdate = (s, action2, now) => {
     const next = { row: current.row, col: current.col + action2.discrete.x };
     if (connected(current, next, s.maze)) {
       s.targetPosition = next;
-      if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
-        s.targetSafe = true;
-      }
       moved = true;
     }
   }
@@ -1340,6 +1337,11 @@ var inputUpdate = (s, action2, now) => {
   }
   if (moved && !s.targetMoved) {
     s.targetMoved = now;
+  }
+  if (addrEqual(s.targetPosition, s.maze.end) && !s.playerCaughtTarget) {
+    s.targetSafe = true;
+  } else if (addrEqual(s.targetPosition, s.playerPosition) && !s.targetSafe) {
+    s.playerCaughtTarget = true;
   }
 };
 var orientShip = (s, dt) => {
@@ -1517,5 +1519,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=33C2169B27D5BD5B64756E2164756E21
+//# debugId=E80F12FF37B28ED664756E2164756E21
 //# sourceMappingURL=game.js.map
