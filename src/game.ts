@@ -23,14 +23,10 @@ if (!nextLevelButton) {
   throw new Error("button #next-level not found");
 }
 
-// Capture non-null references after the guards so the deferred closures below
-// (resize/frame) don't see them as possibly-null.
 const canvas: HTMLCanvasElement = el;
 const ctx: CanvasRenderingContext2D = context;
 const nextButton: HTMLButtonElement = nextLevelButton;
 
-// Advance to the next level only when the player clicks the button. Building a
-// fresh maze clears `won`, which hides the button again on the next frame.
 nextButton.addEventListener("click", () => {
   if (gameState.maze.won) {
     gameState.level += 1;
@@ -38,8 +34,6 @@ nextButton.addEventListener("click", () => {
   }
 });
 
-// Show/hide the DOM button as the level is won/reset. Toggle only on change so
-// we're not thrashing the DOM every frame.
 let buttonShown = false;
 const syncNextLevelButton = () => {
   const won = gameState.maze.won !== undefined;
@@ -59,9 +53,6 @@ resize();
 window.addEventListener("resize", resize);
 initializeKeyboard();
 
-// Recompute the player -> target path only when an endpoint cell actually
-// changed. `undefined` target => `undefined` path.
-
 const loop = () => {
   let last = performance.now();
   function frame(now: number) {
@@ -69,7 +60,7 @@ const loop = () => {
     last = now;
     const nowSeconds = now / 1000;
     update(gameState, getAction(), dt, nowSeconds);
-    render(ctx, gameState.maze);
+    render(ctx, gameState.maze, nowSeconds);
     syncNextLevelButton();
     requestAnimationFrame(frame);
   }

@@ -1,7 +1,7 @@
 import { logPath, logMazeObject } from "./utility/diagnostic";
 
 // toggle path visualization during maze generation
-const SHOW_STEPS = true;
+const SHOW_STEPS = false;
 
 export type Maze = {
   size: MazeSize;

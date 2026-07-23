@@ -1,7 +1,8 @@
-import { connected, MazeAddress } from "./maze";
+import { addrEqual, connected, MazeAddress } from "./maze";
 import { MazeState } from "./state";
+import { renderCelebration } from "./celebration";
 
-export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
+export function render(ctx: CanvasRenderingContext2D, state: MazeState, now: number): void {
   const maze = state.maze;
   const width = ctx.canvas.clientWidth;
   const height = ctx.canvas.clientHeight;
@@ -80,10 +81,13 @@ export function render(ctx: CanvasRenderingContext2D, state: MazeState): void {
 
   drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
 
-  if (state.targetPosition) {
+  if (state.targetPosition && !addrEqual(state.playerPosition, state.targetPosition)) {
     const target = cellCenter(state.targetPosition);
     drawTarget(ctx, target.x, target.y, cellSize);
   }
+
+  // fireworks celebration, drawn on top of everything
+  renderCelebration(ctx, mazeX, mazeY, cellSize, now);
 }
 
 // Small dots at fixed positions along the path (4 per cell), none landing on a
@@ -132,6 +136,10 @@ function drawPath(
 const earthImage = new Image();
 earthImage.src = "assets/images/earth_final.png";
 const EARTH_SCALE = 0.85; // sprite width as a fraction of a cell (tune to taste)
+
+const rocketImage = new Image();
+rocketImage.src = "assets/images/rocket.png";
+const ROCKET_SCALE = 0.7; // sprite height as a fraction of a cell (tune to taste)
 
 // Draw the Earth marker: the photo if it's ready, else the vector globe below.
 function drawEarth(
@@ -194,10 +202,33 @@ function drawEarthVector(
   ctx.restore();
 }
 
+// Draw the rocket marker: the drawing if it's ready, else the vector rocket
+// below. The image is modeled nose-up (toward -y); `orientation` (radians,
+// atan2 convention with +x right and +y down) rotates it to face its heading.
+function drawRocket(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  cellSize: number,
+  orientation: number,
+): void {
+  if (rocketImage.complete && rocketImage.naturalWidth > 0) {
+    const h = cellSize * ROCKET_SCALE;
+    const w = h * (rocketImage.naturalWidth / rocketImage.naturalHeight);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(orientation + Math.PI / 2); // nose-up image (-y) → heading
+    ctx.drawImage(rocketImage, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return;
+  }
+  drawRocketVector(ctx, cx, cy, cellSize, orientation);
+}
+
 // A simple rocket: white body, red nose and fins, a window, a flame.
 // The sprite is modeled nose-up (toward -y); `orientation` (radians, atan2
 // convention with +x right and +y down) rotates it to face its heading.
-function drawRocket(
+function drawRocketVector(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,

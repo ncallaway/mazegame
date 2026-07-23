@@ -170,7 +170,7 @@ var logMazeObject = (maze, label) => {
 };
 
 // src/maze.ts
-var SHOW_STEPS = true;
+var SHOW_STEPS = false;
 var createFullSet = (size) => {
   const full = new MazeAddressSet;
   for (let row = 0;row < size.height; row++) {
@@ -493,224 +493,6 @@ var createMazeState = (level) => {
     won: undefined
   };
 };
-
-// src/render.ts
-function render(ctx, state) {
-  const maze = state.maze;
-  const width = ctx.canvas.clientWidth;
-  const height = ctx.canvas.clientHeight;
-  ctx.clearRect(0, 0, ctx.canvas.width, height);
-  const cellWidth = Math.floor(width / maze.size.width);
-  const cellHeight = Math.floor(height / maze.size.height);
-  const cellSize = Math.min(cellWidth, cellHeight);
-  const mazeWidth = cellSize * maze.size.width;
-  const mazeHeight = cellSize * maze.size.height;
-  const mazeX = (width - mazeWidth) / 2;
-  const mazeY = (height - mazeHeight) / 2;
-  for (let row = 0;row < maze.size.height; row++) {
-    for (let col = 0;col < maze.size.width; col++) {
-      ctx.fillStyle = (row + col) % 2 == 0 ? "blue" : "green";
-      const cellX = mazeX + col * cellSize;
-      const cellY = mazeY + row * cellSize;
-      const cell = { row, col };
-      const left = { row, col: col - 1 };
-      const right = { row, col: col + 1 };
-      const top = { row: row - 1, col };
-      const bottom = { row: row + 1, col };
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "black";
-      ctx.beginPath();
-      if (!connected(cell, left, maze)) {
-        ctx.moveTo(cellX, cellY);
-        ctx.lineTo(cellX, cellY + cellSize);
-      }
-      if (!connected(cell, right, maze)) {
-        ctx.moveTo(cellX + cellSize, cellY);
-        ctx.lineTo(cellX + cellSize, cellY + cellSize);
-      }
-      if (!connected(cell, top, maze)) {
-        ctx.moveTo(cellX, cellY);
-        ctx.lineTo(cellX + cellSize, cellY);
-      }
-      if (!connected(cell, bottom, maze)) {
-        ctx.moveTo(cellX, cellY + cellSize);
-        ctx.lineTo(cellX + cellSize, cellY + cellSize);
-      }
-      ctx.stroke();
-    }
-  }
-  const cellPosition = (addr, x, y) => ({
-    x: mazeX + addr.col * cellSize + cellSize * Math.max(Math.min(x, 1), 0),
-    y: mazeY + addr.row * cellSize + cellSize * Math.max(Math.min(y, 1), 0)
-  });
-  const cellCenter = (addr) => cellPosition(addr, 0.5, 0.5);
-  const goal = cellCenter(maze.end);
-  drawEarth(ctx, goal.x, goal.y, cellSize);
-  const player = cellPosition(state.playerPosition, state.physicalPosition.x, state.physicalPosition.y);
-  if (state.path && state.path.length > 1) {
-    drawPath(ctx, state.path.map(cellCenter), player, cellSize);
-  }
-  drawRocket(ctx, player.x, player.y, cellSize, state.playerOrientation);
-  if (state.targetPosition) {
-    const target = cellCenter(state.targetPosition);
-    drawTarget(ctx, target.x, target.y, cellSize);
-  }
-}
-function drawPath(ctx, centers, ship, cellSize) {
-  if (centers.length < 2) {
-    return;
-  }
-  const dotR = cellSize * 0.035;
-  const offsets = [0.125, 0.375, 0.625, 0.875];
-  const seg0x = centers[1].x - centers[0].x;
-  const seg0y = centers[1].y - centers[0].y;
-  const seg0LenSq = seg0x * seg0x + seg0y * seg0y;
-  const shipArc = seg0LenSq > 0 ? ((ship.x - centers[0].x) * seg0x + (ship.y - centers[0].y) * seg0y) / seg0LenSq : 0;
-  const minArc = shipArc + 0.1;
-  ctx.save();
-  ctx.fillStyle = "#ffffff77";
-  for (let i = 1;i < centers.length; i++) {
-    const a = centers[i - 1];
-    const b = centers[i];
-    for (const t of offsets) {
-      if (i - 1 + t < minArc) {
-        continue;
-      }
-      ctx.beginPath();
-      ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-var earthImage = new Image;
-earthImage.src = "assets/images/earth_final.png";
-var EARTH_SCALE = 0.85;
-function drawEarth(ctx, cx, cy, cellSize) {
-  if (earthImage.complete && earthImage.naturalWidth > 0) {
-    const w = cellSize * EARTH_SCALE;
-    const h = w * (earthImage.naturalHeight / earthImage.naturalWidth);
-    ctx.drawImage(earthImage, cx - w / 2, cy - h / 2, w, h);
-    return;
-  }
-  drawEarthVector(ctx, cx, cy, cellSize);
-}
-function drawEarthVector(ctx, cx, cy, cellSize) {
-  const r = cellSize * 0.34;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.lineWidth = 2;
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fillStyle = "#2f6fd0";
-  ctx.fill();
-  ctx.save();
-  ctx.clip();
-  ctx.fillStyle = "#3fa34d";
-  const blobs = [
-    [-r * 0.35, -r * 0.25, r * 0.5],
-    [r * 0.4, r * 0.05, r * 0.42],
-    [-r * 0.05, r * 0.55, r * 0.33]
-  ];
-  for (const [bx, by, br] of blobs) {
-    ctx.beginPath();
-    ctx.arc(bx, by, br, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.strokeStyle = "black";
-  ctx.stroke();
-  ctx.restore();
-}
-function drawRocket(ctx, cx, cy, cellSize, orientation) {
-  const s = cellSize * (2 / 3);
-  const halfW = s * 0.13;
-  const noseTop = -s * 0.3;
-  const bodyTop = -s * 0.1;
-  const bodyBottom = s * 0.22;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(orientation + Math.PI / 2);
-  ctx.lineWidth = 2;
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "black";
-  ctx.fillStyle = "#d1453b";
-  const finDrop = s * 0.12;
-  const finOut = s * 0.11;
-  ctx.beginPath();
-  ctx.moveTo(halfW, bodyBottom - finDrop);
-  ctx.lineTo(halfW + finOut, bodyBottom + s * 0.05);
-  ctx.lineTo(halfW, bodyBottom);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-halfW, bodyBottom - finDrop);
-  ctx.lineTo(-halfW - finOut, bodyBottom + s * 0.05);
-  ctx.lineTo(-halfW, bodyBottom);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#f4a323";
-  ctx.beginPath();
-  ctx.moveTo(-halfW * 0.6, bodyBottom);
-  ctx.lineTo(0, bodyBottom + s * 0.16);
-  ctx.lineTo(halfW * 0.6, bodyBottom);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#f2f2f2";
-  ctx.beginPath();
-  ctx.rect(-halfW, bodyTop, halfW * 2, bodyBottom - bodyTop);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#d1453b";
-  ctx.beginPath();
-  ctx.moveTo(0, noseTop);
-  ctx.lineTo(halfW, bodyTop);
-  ctx.lineTo(-halfW, bodyTop);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#7ec8e3";
-  ctx.beginPath();
-  ctx.arc(0, bodyTop + s * 0.08, s * 0.06, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-function drawTarget(ctx, cx, cy, cellSize) {
-  const boxSize = cellSize * 0.13;
-  const outlineSize = cellSize * 0.2;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "#ffffffbb";
-  ctx.fillStyle = "#ffffff99";
-  ctx.beginPath();
-  ctx.rect(-boxSize * 0.5, -boxSize * 0.5, boxSize, boxSize);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.rect(-outlineSize * 0.5, -outlineSize * 0.5, outlineSize, outlineSize);
-  ctx.stroke();
-  ctx.restore();
-}
-
-// src/constants/ship.ts
-var SHIP_TARGET_ROTATIONAL_VELOCITY = 16;
-var SHIP_MAX_ROTATIONAL_ACCELERATION = 60;
-var SHIP_BRAKE_SAFETY = 0.9;
-var SHIP_ORIENTATION_SNAP_EPSILON = 0.03;
-var SHIP_ROTATIONAL_VELOCITY_SNAP_EPSILON = 0.5;
-var SHIP_TARGET_LINEAR_VELOCITY = 4;
-var SHIP_MAX_LINEAR_ACCELERATION = 12;
-var SHIP_LINEAR_BRAKE_SAFETY = 0.9;
-var SHIP_POSITION_SNAP_EPSILON = 0.02;
-var SHIP_LINEAR_VELOCITY_SNAP_EPSILON = 0.3;
-var SHIP_THRUST_ALIGNMENT = Math.PI / 2;
 // node_modules/gl-matrix/esm/vec2.js
 var exports_vec2 = {};
 __export(exports_vec2, {
@@ -1005,6 +787,479 @@ var forEach = function() {
     return a;
   };
 }();
+// src/utility/vector.ts
+var fromMazeAddress = (address, x = 0.5, y = 0.5) => {
+  if (typeof x === "object") {
+    return exports_vec2.fromValues(address.col + x.x, address.row + x.y);
+  }
+  return exports_vec2.fromValues(address.col + x, address.row + y);
+};
+var toOrientation = (vec) => {
+  return Math.atan2(vec[1], vec[0]);
+};
+var fromOrientation = (angle2) => {
+  return exports_vec2.fromValues(Math.cos(angle2), Math.sin(angle2));
+};
+var vector = {
+  fromMazeAddress,
+  toOrientation,
+  fromOrientation
+};
+
+// src/constants/fireworks.ts
+var FIREWORKS = {
+  LaunchRadius: 0.4,
+  Gravity: 1,
+  ParticleCount: 100,
+  ParticleVelocity: 1,
+  ParticleSize: 0.1,
+  ParticleDuration: 2,
+  LifetimeSpeedBias: 0.6,
+  AmbientMin: 3,
+  AmbientMax: 5
+};
+
+// src/celebration.ts
+var state = {
+  started: undefined,
+  at: undefined,
+  fireworks: [],
+  particles: [],
+  scheduled: []
+};
+var COLORS = [
+  "#ff2d2d",
+  "#ff7a1a",
+  "#ffd21a",
+  "#4dff4d",
+  "#1affd5",
+  "#3b82ff",
+  "#c04dff",
+  "#ff4dd2"
+];
+var startCelebration = (at, now) => {
+  state.started = now;
+  state.at = at;
+  scheduleShow(now);
+};
+var scheduleShow = (now, duration = 15) => {
+  const times = [];
+  const opening = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0;i < opening; i++) {
+    times.push(Math.random() * 0.3);
+  }
+  const peakRate = 6;
+  const tau = duration / 3;
+  const wavelength = 2 + Math.random() * 4;
+  const omega = 2 * Math.PI / wavelength;
+  const rate = (t2) => peakRate * Math.exp(-t2 / tau) * (0.55 + 0.45 * Math.cos(omega * t2));
+  let t = 0.4;
+  while (t < duration) {
+    t += -Math.log(1 - Math.random()) / peakRate;
+    if (t < duration && Math.random() < rate(t) / peakRate) {
+      times.push(t);
+    }
+  }
+  for (const dt of times) {
+    state.scheduled.push(randomFirework(now + dt));
+  }
+};
+var scheduleAmbient = (now) => {
+  if (state.scheduled.length > 0) {
+    return;
+  }
+  const delay = FIREWORKS.AmbientMin + Math.random() * (FIREWORKS.AmbientMax - FIREWORKS.AmbientMin);
+  state.scheduled.push(randomFirework(now + delay));
+};
+var randomFirework = (at) => {
+  const powden = Math.random() * 0.4 + 0.8;
+  return {
+    at,
+    direction: Math.random() * Math.PI * 2,
+    height: 0.25 + Math.random() * 0.5,
+    color: Math.floor(Math.random() * COLORS.length),
+    power: powden,
+    density: powden,
+    duration: 1
+  };
+};
+var updateCelebration = (dt, now) => {
+  if (!state.started || !state.at) {
+    return;
+  }
+  launchFireworks(now);
+  scheduleAmbient(now);
+  explodeFireworks(now);
+  updateFireworks(dt);
+  updateParticles(dt);
+  removeStale(now);
+};
+var launchFireworks = (now) => {
+  for (let idx = 0;idx < state.scheduled.length; idx++) {
+    const f = state.scheduled[idx];
+    if (now > f.at) {
+      state.fireworks.push({
+        position: launchPosition(f),
+        velocity: launchVelocity(f),
+        firework: f
+      });
+      state.scheduled.splice(idx, 1);
+      idx -= 1;
+    }
+  }
+};
+var explodeFireworks = (now) => {
+  const c = earth();
+  for (let idx = 0;idx < state.fireworks.length; idx++) {
+    const f = state.fireworks[idx];
+    const g = exports_vec2.sub(exports_vec2.create(), c, f.position);
+    if (exports_vec2.dot(g, f.velocity) >= 0) {
+      const count = Math.pow(Math.random(), 0.35) * FIREWORKS.ParticleCount * f.firework.density;
+      for (let i = 0;i < count; i++) {
+        launchParticle(f, now);
+      }
+      state.fireworks.splice(idx, 1);
+      idx--;
+    }
+  }
+};
+var SPEED_FRAC_MEAN = 0.454;
+var launchParticle = (f, now) => {
+  const angle2 = Math.random() * 2 * Math.PI;
+  const dir = vector.fromOrientation(angle2);
+  const up = vector.fromOrientation(f.firework.direction);
+  const speed = Math.pow(Math.random(), 0.75) * FIREWORKS.ParticleVelocity * f.firework.power;
+  const velocity = exports_vec2.scale(exports_vec2.create(), dir, speed);
+  exports_vec2.scale(up, up, Math.pow(Math.random(), 0.35) * FIREWORKS.ParticleVelocity);
+  exports_vec2.add(velocity, velocity, up);
+  const size = Math.pow(Math.random(), 0.5) * FIREWORKS.ParticleSize;
+  const maxSpeed = FIREWORKS.ParticleVelocity * (f.firework.power + 1);
+  const speedFrac = Math.min(1, exports_vec2.len(velocity) / maxSpeed);
+  const speedFactor = Math.max(0.2, 1 + FIREWORKS.LifetimeSpeedBias * (speedFrac - SPEED_FRAC_MEAN));
+  const lifetime = Math.pow(Math.random(), 0.5) * FIREWORKS.ParticleDuration * f.firework.duration * speedFactor;
+  state.particles.push({
+    position: exports_vec2.clone(f.position),
+    velocity: exports_vec2.add(velocity, velocity, f.velocity),
+    color: f.firework.color,
+    at: now,
+    lifetime,
+    size
+  });
+};
+var updateFireworks = (dt) => {
+  const c = earth();
+  for (let idx = 0;idx < state.fireworks.length; idx++) {
+    const f = state.fireworks[idx];
+    const g = exports_vec2.sub(exports_vec2.create(), c, f.position);
+    exports_vec2.normalize(g, g);
+    const dv = exports_vec2.scale(exports_vec2.create(), g, FIREWORKS.Gravity * dt);
+    exports_vec2.add(f.velocity, f.velocity, dv);
+    const delta = exports_vec2.scale(exports_vec2.create(), f.velocity, dt);
+    exports_vec2.add(f.position, f.position, delta);
+  }
+};
+var updateParticles = (dt) => {
+  const c = earth();
+  for (let idx = 0;idx < state.particles.length; idx++) {
+    const p = state.particles[idx];
+    const g = exports_vec2.sub(exports_vec2.create(), c, p.position);
+    exports_vec2.normalize(g, g);
+    const dv = exports_vec2.scale(exports_vec2.create(), g, FIREWORKS.Gravity * dt);
+    exports_vec2.add(p.velocity, p.velocity, dv);
+    const delta = exports_vec2.scale(exports_vec2.create(), p.velocity, dt);
+    exports_vec2.add(p.position, p.position, delta);
+  }
+};
+var removeStale = (now) => {
+  for (let idx = 0;idx < state.particles.length; idx++) {
+    const p = state.particles[idx];
+    if (now > p.at + p.lifetime) {
+      state.particles.splice(idx, 1);
+      idx--;
+    }
+  }
+};
+var launchPosition = (f) => {
+  const c = earth();
+  const dir = vector.fromOrientation(f.direction);
+  const delta = exports_vec2.scale(exports_vec2.create(), dir, FIREWORKS.LaunchRadius);
+  return exports_vec2.add(exports_vec2.create(), c, delta);
+};
+var launchVelocity = (f) => {
+  const dir = exports_vec2.fromValues(Math.cos(f.direction), Math.sin(f.direction));
+  const speed = Math.sqrt(2 * FIREWORKS.Gravity * f.height);
+  return exports_vec2.scale(exports_vec2.create(), dir, speed);
+};
+var earth = () => vector.fromMazeAddress(state.at);
+var stopCelebration = () => {
+  state.started = undefined;
+  state.at = undefined;
+  state.scheduled = [];
+  state.fireworks = [];
+  state.particles = [];
+};
+var renderCelebration = (ctx, originX, originY, cellSize, now) => {
+  if (state.fireworks.length === 0 && state.particles.length === 0) {
+    return;
+  }
+  const pixelX = (worldX) => originX + worldX * cellSize;
+  const pixelY = (worldY) => originY + worldY * cellSize;
+  ctx.save();
+  const shellSize = 0.06 * cellSize;
+  ctx.fillStyle = "#888888";
+  for (const f of state.fireworks) {
+    const px = pixelX(f.position[0]);
+    const py = pixelY(f.position[1]);
+    ctx.fillRect(px - shellSize / 2, py - shellSize / 2, shellSize, shellSize);
+  }
+  for (const p of state.particles) {
+    let t = (now - p.at) / p.lifetime;
+    t = Math.pow(t, 0.8);
+    ctx.globalAlpha = Math.max(0, Math.min(1, 1 - t));
+    ctx.fillStyle = COLORS[p.color] ?? "#ffffff";
+    const s = p.size * cellSize;
+    const px = pixelX(p.position[0]);
+    const py = pixelY(p.position[1]);
+    ctx.fillRect(px - s / 2, py - s / 2, s, s);
+  }
+  ctx.restore();
+};
+
+// src/render.ts
+function render(ctx, state2, now) {
+  const maze = state2.maze;
+  const width = ctx.canvas.clientWidth;
+  const height = ctx.canvas.clientHeight;
+  ctx.clearRect(0, 0, ctx.canvas.width, height);
+  const cellWidth = Math.floor(width / maze.size.width);
+  const cellHeight = Math.floor(height / maze.size.height);
+  const cellSize = Math.min(cellWidth, cellHeight);
+  const mazeWidth = cellSize * maze.size.width;
+  const mazeHeight = cellSize * maze.size.height;
+  const mazeX = (width - mazeWidth) / 2;
+  const mazeY = (height - mazeHeight) / 2;
+  for (let row = 0;row < maze.size.height; row++) {
+    for (let col = 0;col < maze.size.width; col++) {
+      ctx.fillStyle = (row + col) % 2 == 0 ? "blue" : "green";
+      const cellX = mazeX + col * cellSize;
+      const cellY = mazeY + row * cellSize;
+      const cell = { row, col };
+      const left = { row, col: col - 1 };
+      const right = { row, col: col + 1 };
+      const top = { row: row - 1, col };
+      const bottom = { row: row + 1, col };
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      if (!connected(cell, left, maze)) {
+        ctx.moveTo(cellX, cellY);
+        ctx.lineTo(cellX, cellY + cellSize);
+      }
+      if (!connected(cell, right, maze)) {
+        ctx.moveTo(cellX + cellSize, cellY);
+        ctx.lineTo(cellX + cellSize, cellY + cellSize);
+      }
+      if (!connected(cell, top, maze)) {
+        ctx.moveTo(cellX, cellY);
+        ctx.lineTo(cellX + cellSize, cellY);
+      }
+      if (!connected(cell, bottom, maze)) {
+        ctx.moveTo(cellX, cellY + cellSize);
+        ctx.lineTo(cellX + cellSize, cellY + cellSize);
+      }
+      ctx.stroke();
+    }
+  }
+  const cellPosition = (addr, x, y) => ({
+    x: mazeX + addr.col * cellSize + cellSize * Math.max(Math.min(x, 1), 0),
+    y: mazeY + addr.row * cellSize + cellSize * Math.max(Math.min(y, 1), 0)
+  });
+  const cellCenter = (addr) => cellPosition(addr, 0.5, 0.5);
+  const goal = cellCenter(maze.end);
+  drawEarth(ctx, goal.x, goal.y, cellSize);
+  const player = cellPosition(state2.playerPosition, state2.physicalPosition.x, state2.physicalPosition.y);
+  if (state2.path && state2.path.length > 1) {
+    drawPath(ctx, state2.path.map(cellCenter), player, cellSize);
+  }
+  drawRocket(ctx, player.x, player.y, cellSize, state2.playerOrientation);
+  if (state2.targetPosition && !addrEqual(state2.playerPosition, state2.targetPosition)) {
+    const target = cellCenter(state2.targetPosition);
+    drawTarget(ctx, target.x, target.y, cellSize);
+  }
+  renderCelebration(ctx, mazeX, mazeY, cellSize, now);
+}
+function drawPath(ctx, centers, ship, cellSize) {
+  if (centers.length < 2) {
+    return;
+  }
+  const dotR = cellSize * 0.035;
+  const offsets = [0.125, 0.375, 0.625, 0.875];
+  const seg0x = centers[1].x - centers[0].x;
+  const seg0y = centers[1].y - centers[0].y;
+  const seg0LenSq = seg0x * seg0x + seg0y * seg0y;
+  const shipArc = seg0LenSq > 0 ? ((ship.x - centers[0].x) * seg0x + (ship.y - centers[0].y) * seg0y) / seg0LenSq : 0;
+  const minArc = shipArc + 0.1;
+  ctx.save();
+  ctx.fillStyle = "#ffffff77";
+  for (let i = 1;i < centers.length; i++) {
+    const a = centers[i - 1];
+    const b = centers[i];
+    for (const t of offsets) {
+      if (i - 1 + t < minArc) {
+        continue;
+      }
+      ctx.beginPath();
+      ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+var earthImage = new Image;
+earthImage.src = "assets/images/earth_final.png";
+var EARTH_SCALE = 0.85;
+var rocketImage = new Image;
+rocketImage.src = "assets/images/rocket.png";
+var ROCKET_SCALE = 0.7;
+function drawEarth(ctx, cx, cy, cellSize) {
+  if (earthImage.complete && earthImage.naturalWidth > 0) {
+    const w = cellSize * EARTH_SCALE;
+    const h = w * (earthImage.naturalHeight / earthImage.naturalWidth);
+    ctx.drawImage(earthImage, cx - w / 2, cy - h / 2, w, h);
+    return;
+  }
+  drawEarthVector(ctx, cx, cy, cellSize);
+}
+function drawEarthVector(ctx, cx, cy, cellSize) {
+  const r = cellSize * 0.34;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#2f6fd0";
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = "#3fa34d";
+  const blobs = [
+    [-r * 0.35, -r * 0.25, r * 0.5],
+    [r * 0.4, r * 0.05, r * 0.42],
+    [-r * 0.05, r * 0.55, r * 0.33]
+  ];
+  for (const [bx, by, br] of blobs) {
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "black";
+  ctx.stroke();
+  ctx.restore();
+}
+function drawRocket(ctx, cx, cy, cellSize, orientation) {
+  if (rocketImage.complete && rocketImage.naturalWidth > 0) {
+    const h = cellSize * ROCKET_SCALE;
+    const w = h * (rocketImage.naturalWidth / rocketImage.naturalHeight);
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(orientation + Math.PI / 2);
+    ctx.drawImage(rocketImage, -w / 2, -h / 2, w, h);
+    ctx.restore();
+    return;
+  }
+  drawRocketVector(ctx, cx, cy, cellSize, orientation);
+}
+function drawRocketVector(ctx, cx, cy, cellSize, orientation) {
+  const s = cellSize * (2 / 3);
+  const halfW = s * 0.13;
+  const noseTop = -s * 0.3;
+  const bodyTop = -s * 0.1;
+  const bodyBottom = s * 0.22;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(orientation + Math.PI / 2);
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "black";
+  ctx.fillStyle = "#d1453b";
+  const finDrop = s * 0.12;
+  const finOut = s * 0.11;
+  ctx.beginPath();
+  ctx.moveTo(halfW, bodyBottom - finDrop);
+  ctx.lineTo(halfW + finOut, bodyBottom + s * 0.05);
+  ctx.lineTo(halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-halfW, bodyBottom - finDrop);
+  ctx.lineTo(-halfW - finOut, bodyBottom + s * 0.05);
+  ctx.lineTo(-halfW, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f4a323";
+  ctx.beginPath();
+  ctx.moveTo(-halfW * 0.6, bodyBottom);
+  ctx.lineTo(0, bodyBottom + s * 0.16);
+  ctx.lineTo(halfW * 0.6, bodyBottom);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f2f2f2";
+  ctx.beginPath();
+  ctx.rect(-halfW, bodyTop, halfW * 2, bodyBottom - bodyTop);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d1453b";
+  ctx.beginPath();
+  ctx.moveTo(0, noseTop);
+  ctx.lineTo(halfW, bodyTop);
+  ctx.lineTo(-halfW, bodyTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#7ec8e3";
+  ctx.beginPath();
+  ctx.arc(0, bodyTop + s * 0.08, s * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+function drawTarget(ctx, cx, cy, cellSize) {
+  const boxSize = cellSize * 0.13;
+  const outlineSize = cellSize * 0.2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "#ffffffbb";
+  ctx.fillStyle = "#ffffff99";
+  ctx.beginPath();
+  ctx.rect(-boxSize * 0.5, -boxSize * 0.5, boxSize, boxSize);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.rect(-outlineSize * 0.5, -outlineSize * 0.5, outlineSize, outlineSize);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// src/constants/ship.ts
+var SHIP_TARGET_ROTATIONAL_VELOCITY = 16;
+var SHIP_MAX_ROTATIONAL_ACCELERATION = 60;
+var SHIP_BRAKE_SAFETY = 0.9;
+var SHIP_ORIENTATION_SNAP_EPSILON = 0.03;
+var SHIP_ROTATIONAL_VELOCITY_SNAP_EPSILON = 0.5;
+var SHIP_TARGET_LINEAR_VELOCITY = 4;
+var SHIP_MAX_LINEAR_ACCELERATION = 12;
+var SHIP_LINEAR_BRAKE_SAFETY = 0.9;
+var SHIP_POSITION_SNAP_EPSILON = 0.02;
+var SHIP_LINEAR_VELOCITY_SNAP_EPSILON = 0.3;
+var SHIP_THRUST_ALIGNMENT = Math.PI / 2;
+
 // src/update.ts
 var update = (s, action2, dt, now) => {
   const m = s.maze;
@@ -1012,10 +1267,14 @@ var update = (s, action2, dt, now) => {
     inputUpdate(m, action2);
   }
   syncPath(m);
+  updateCelebration(dt, now);
   orientShip(m, dt);
   moveShip(m, dt);
   if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
+    startCelebration(m.maze.end, now);
     m.won = now;
+  } else if (!m.won) {
+    stopCelebration();
   }
 };
 var inputUpdate = (s, action2) => {
@@ -1066,7 +1325,7 @@ var moveShip = (s, dt) => {
       return;
     }
   }
-  const worldPos = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
+  const worldPos = vector.fromMazeAddress(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
   const vel = exports_vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
   const targetVel = idealLinearVelocity(s, worldPos);
   const maxDelta = SHIP_MAX_LINEAR_ACCELERATION * dt;
@@ -1091,7 +1350,7 @@ var idealLinearVelocity = (s, worldPos) => {
   if (!s.path || s.path.length === 0) {
     return zero2;
   }
-  const waypoint = mazeAddressVec2(s.path[1] ?? s.path[0]);
+  const waypoint = vector.fromMazeAddress(s.path[1] ?? s.path[0]);
   const toWaypoint = exports_vec2.sub(exports_vec2.create(), waypoint, worldPos);
   const distToWaypoint = exports_vec2.len(toWaypoint);
   if (distToWaypoint < 0.000001) {
@@ -1101,7 +1360,7 @@ var idealLinearVelocity = (s, worldPos) => {
   const dir = exports_vec2.scale(exports_vec2.create(), toWaypoint, 1 / distToWaypoint);
   const brakeSpeed = Math.sqrt(2 * SHIP_MAX_LINEAR_ACCELERATION * SHIP_LINEAR_BRAKE_SAFETY * remaining);
   let speed = Math.min(SHIP_TARGET_LINEAR_VELOCITY, brakeSpeed);
-  const headingError = Math.abs(wrapAngle(orientationFromVec2(dir) - s.playerOrientation));
+  const headingError = Math.abs(wrapAngle(vector.toOrientation(dir) - s.playerOrientation));
   const gate = clamp((SHIP_THRUST_ALIGNMENT - headingError) / SHIP_THRUST_ALIGNMENT, 0, 1);
   speed *= gate;
   return exports_vec2.scale(exports_vec2.create(), dir, speed);
@@ -1121,20 +1380,14 @@ var idealFacingDirection = (s) => {
   if (!s.path || !s.path[1]) {
     const velocity = exports_vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
     if (exports_vec2.sqrLen(velocity) > 0.1) {
-      return orientationFromVec2(velocity);
+      return vector.toOrientation(velocity);
     }
     return;
   }
-  const next = mazeAddressVec2(s.path[1]);
-  const current = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
+  const next = vector.fromMazeAddress(s.path[1]);
+  const current = vector.fromMazeAddress(s.playerPosition, s.physicalPosition);
   const delta = exports_vec2.sub(exports_vec2.create(), next, current);
-  return orientationFromVec2(delta);
-};
-var orientationFromVec2 = (vec) => {
-  return Math.atan2(vec[1], vec[0]);
-};
-var mazeAddressVec2 = (address, x = 0.5, y = 0.5) => {
-  return exports_vec2.fromValues(address.col + x, address.row + y);
+  return vector.toOrientation(delta);
 };
 var syncPath = (s) => {
   if (s.targetPosition === undefined) {
@@ -1203,7 +1456,7 @@ var loop = () => {
     last = now;
     const nowSeconds = now / 1000;
     update(gameState, getAction(), dt, nowSeconds);
-    render(ctx, gameState.maze);
+    render(ctx, gameState.maze, nowSeconds);
     syncNextLevelButton();
     requestAnimationFrame(frame);
   }
@@ -1211,5 +1464,5 @@ var loop = () => {
 };
 loop();
 
-//# debugId=AF682595557B3AAB64756E2164756E21
+//# debugId=DEFB7B86C02445C464756E2164756E21
 //# sourceMappingURL=game.js.map

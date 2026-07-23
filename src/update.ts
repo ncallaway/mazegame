@@ -16,6 +16,8 @@ import {
 } from './constants/ship';
 
 import { vec2 } from "gl-matrix";
+import { vector } from "./utility/vector";
+import { startCelebration, stopCelebration, updateCelebration } from "./celebration";
 
 export const update = (s: GameState, action: InputAction, dt: number, now: number) => {
   const m = s.maze;
@@ -26,13 +28,17 @@ export const update = (s: GameState, action: InputAction, dt: number, now: numbe
     inputUpdate(m, action);
   }
   syncPath(m);
+  updateCelebration(dt, now);
 
   orientShip(m, dt);
   moveShip(m, dt);
 
   // check win condition:
   if (m.won === undefined && addrEqual(m.playerPosition, m.maze.end)) {
+    startCelebration(m.maze.end, now);
     m.won = now;
+  } else if (!m.won) {
+    stopCelebration();
   }
 }
 
@@ -98,7 +104,7 @@ const moveShip = (s: MazeState, dt: number) => {
     }
   }
 
-  const worldPos = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y); 
+  const worldPos = vector.fromMazeAddress(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y); 
   const vel = vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
   const targetVel = idealLinearVelocity(s, worldPos);
 
@@ -132,7 +138,7 @@ const idealLinearVelocity = (s: MazeState, worldPos: vec2): vec2 => {
   }
 
   // Steer toward the next cell (or the target cell itself once we're in it).
-  const waypoint = mazeAddressVec2(s.path[1] ?? s.path[0]);
+  const waypoint = vector.fromMazeAddress(s.path[1] ?? s.path[0]);
   const toWaypoint = vec2.sub(vec2.create(), waypoint, worldPos);
   const distToWaypoint = vec2.len(toWaypoint);
   if (distToWaypoint < 1e-6) {
@@ -149,7 +155,7 @@ const idealLinearVelocity = (s: MazeState, worldPos: vec2): vec2 => {
 
   // Alignment gate: ramp thrust 0 -> full as the nose nears the desired heading,
   // so we start accelerating before the turn is fully complete (gas-pedal feel).
-  const headingError = Math.abs(wrapAngle(orientationFromVec2(dir) - s.playerOrientation));
+  const headingError = Math.abs(wrapAngle(vector.toOrientation(dir) - s.playerOrientation));
   const gate = clamp((SHIP_THRUST_ALIGNMENT - headingError) / SHIP_THRUST_ALIGNMENT, 0, 1);
   speed *= gate;
 
@@ -162,7 +168,7 @@ const clamp = (x: number, lo: number, hi: number): number => Math.min(Math.max(x
 
 const idealRotationalVelocity = (desiredOrientation: number | undefined, s: MazeState): number => {
   if (desiredOrientation === undefined) {
-    return 0; // no target heading → aim to stop spinning
+    return 0; // no target heading → aim to stop spinninvector.toOrientation
   }
 
   const error = wrapAngle(desiredOrientation - s.playerOrientation);
@@ -179,26 +185,18 @@ const idealFacingDirection = (s: MazeState): number | undefined => {
   if (!s.path || !s.path[1]) {
     const velocity = vec2.fromValues(s.physicalVelocity.x, s.physicalVelocity.y);
     if (vec2.sqrLen(velocity) > 0.1) {
-      return orientationFromVec2(velocity);
+      return vector.toOrientation(velocity);
     }
     return undefined;
   }
   
-  const next = mazeAddressVec2(s.path[1]);
-  const current = mazeAddressVec2(s.playerPosition, s.physicalPosition.x, s.physicalPosition.y);
+  const next = vector.fromMazeAddress(s.path[1]);
+  const current = vector.fromMazeAddress(s.playerPosition, s.physicalPosition);
 
   const delta = vec2.sub(vec2.create(), next, current);
 
-  return orientationFromVec2(delta);
+  return vector.toOrientation(delta);
 
-}
-
-const orientationFromVec2 = (vec: vec2): number => {
-  return Math.atan2(vec[1], vec[0]);
-}
-
-const mazeAddressVec2 = (address: MazeAddress, x: number = 0.5, y: number = 0.5): vec2 => {
-  return vec2.fromValues(address.col + x, address.row + y);
 }
 
 const syncPath = (s: MazeState) => {
